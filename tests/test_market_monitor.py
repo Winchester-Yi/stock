@@ -117,6 +117,108 @@ class CollectorTests(unittest.TestCase):
         count = self.db.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0]
         self.assertEqual(count, 1)
 
+    def test_historical_metrics_retained_outside_live_hours(self):
+        self.row("sz002185", "10:00:00", "10:00:01", price=100, turnover=1000)
+        self.row("sz002185", "10:15:00", "10:15:01", price=102, turnover=1300)
+        result = mm.context(self.db, "2026-11-02", as_of=at("16:00:00"))["watchlist"][0]
+        self.assertFalse(result["quote"]["current"])
+        self.assertEqual(result["metrics"]["interval_pct"], 2.0)
+        self.assertEqual(result["metrics"]["turnover_delta"], 300)
+        self.assertEqual(result["metrics"]["turnover_per_min"], 20)
+        self.assertFalse(result["metrics"]["usable_for_live_inference"])
+
+    def test_historical_metrics_retained_when_reviewing_old_date(self):
+        self.row("sz002185", "10:00:00", "10:00:01", price=100)
+        self.row("sz002185", "10:15:00", "10:15:01", price=101)
+        result = mm.context(self.db, "2026-11-02", as_of=at("17:00:00"))["watchlist"][0]
+        self.assertEqual(result["metrics"]["interval_pct"], 1.0)
+
+    def test_overseas_positive_f124_does_not_verify_exchange_time(self):
+        stamp = int(at("10:00:00").timestamp())
+        quote, verified = mm.provider_timestamp({"f124": stamp}, "JP")
+        self.assertIsNotNone(quote)
+        self.assertFalse(verified)
+
+    def test_overseas_scale_is_not_assumed(self):
+        payload = {"f57": "N225", "f43": 6312345, "f60": 6320000,
+                   "f44": 6400000, "f45": 6300000, "f46": 6320000,
+                   "f48": 999, "f124": int(at("10:00:00").timestamp())}
+        with patch.object(mm, "east_data", return_value=(payload, at("10:00:01"))):
+            self.assertEqual(mm.collect_east(self.db, "N225", "100.N225", "JP", expected_code="N225"),
+                             "unverified_contract")
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM snapshots WHERE symbol='N225'").fetchone()[0], 0)
+
+    def test_old_overseas_row_is_quarantined(self):
+        self.row("N225", "10:00:00", "10:00:01", source="eastmoney", price=999)
+        result = mm.context(self.db, "2026-11-02", as_of=at("10:00:30"))["overseas"][0]
+        self.assertIsNone(result["quote"]["price"])
+        self.assertFalse(result["quote"]["price_scale_verified"])
+        self.assertIsNone(result["metrics"])
+
+    def test_price_consistency_and_bad_optional_fields(self):
+        with self.assertRaisesRegex(ValueError, "开盘价超出"):
+            mm.validate_prices(100, 99, 102, 98, open_price=110)
+        with self.assertRaisesRegex(ValueError, "最高价低于"):
+            mm.validate_prices(100, 99, 90, 110)
+        with self.assertRaisesRegex(ValueError, "累计成交额为负"):
+            mm.validate_prices(100, 99, turnover=-2)
+        with self.assertRaisesRegex(ValueError, "不是有限数字"):
+            mm.optional_number("NaN", "成交额")
+        self.assertIsNone(mm.optional_number("--", "成交额"))
+
+    def test_existing_fetch_runs_migrate_without_losing_rows(self):
+        old_path = Path(self.temp.name) / "legacy.sqlite3"
+        with sqlite3.connect(old_path) as old:
+            old.execute("CREATE TABLE fetch_runs (id INTEGER PRIMARY KEY, started_at TEXT, ended_at TEXT, statuses_json TEXT)")
+            old.execute("INSERT INTO fetch_runs(started_at,ended_at,statuses_json) VALUES(?,?,?)",
+                        (at("09:30:00").isoformat(), at("09:30:02").isoformat(), "{}"))
+        with mm.connection(old_path) as migrated:
+            self.assertIn("outcome", {r[1] for r in migrated.execute("PRAGMA table_info(fetch_runs)")})
+            self.assertEqual(migrated.execute("SELECT COUNT(*) FROM fetch_runs").fetchone()[0], 1)
+
+
+class FetchOutcomeTests(unittest.TestCase):
+    def valid(self, status="fresh", overseas="not_attempted"):
+        return {**{s: status for s in mm.SYMBOLS}, mm.SECTOR: status,
+                **{s: overseas for s in mm.OVERSEAS}}
+
+    def test_all_http_failures_during_lunch_are_not_success(self):
+        statuses = self.valid("error: timeout", "error: timeout")
+        self.assertEqual(mm.assess_fetch(statuses, "lunch_break"), ("failed", 2))
+
+    def test_sector_failure_during_trading_is_degraded(self):
+        statuses = self.valid()
+        statuses[mm.SECTOR] = "error: connection closed"
+        self.assertEqual(mm.assess_fetch(statuses, "trading"), ("degraded", 1))
+
+    def test_partial_failure_off_hours_is_degraded(self):
+        statuses = self.valid("session_paused")
+        statuses[mm.SECTOR] = "error: timeout"
+        self.assertEqual(mm.assess_fetch(statuses, "closed"), ("degraded", 1))
+
+    def test_healthy_market_closed_is_not_a_failure(self):
+        self.assertEqual(mm.assess_fetch(self.valid("session_paused"), "lunch_break"),
+                         ("market_closed", 0))
+
+    def test_overseas_unverified_live_market_is_degraded(self):
+        self.assertEqual(mm.assess_fetch(self.valid(overseas="unverified_contract"), "trading"),
+                         ("degraded", 1))
+        self.assertEqual(mm.assess_fetch(self.valid(), "trading"), ("success", 0))
+
+    def test_all_skipped_is_failed(self):
+        self.assertEqual(mm.assess_fetch(self.valid("not_attempted"), "closed"), ("failed", 2))
+
+    def test_fetch_persists_result_and_nonzero_exit(self):
+        with tempfile.TemporaryDirectory() as temp, mm.connection(Path(temp) / "test.db") as db:
+            with patch.object(mm, "collect_sina", return_value={s: "fresh" for s in mm.SYMBOLS}), \
+                 patch.object(mm, "collect_east", side_effect=OSError("blocked")), \
+                 patch.object(mm, "session_state", return_value=("trading", False)), \
+                 patch.object(mm, "report"):
+                self.assertEqual(mm.fetch(db, overseas=False), 1)
+            stored = db.execute("SELECT outcome,statuses_json FROM fetch_runs ORDER BY id DESC LIMIT 1").fetchone()
+            self.assertEqual(stored["outcome"], "degraded")
+            self.assertTrue(json.loads(stored["statuses_json"])[mm.SECTOR].startswith("error:"))
+
 
 if __name__ == "__main__":
     unittest.main()
