@@ -1,0 +1,17 @@
+{
+  "snapshots": [
+    {"symbol":"sz002185","name":"华天科技","trade_date":"2026-10-30","quote_time":"2026-10-30T10:10:24+08:00","captured_at":"2026-10-30T10:10:30+08:00","price":15.31,"previous_close":15.17,"open":14.35,"high":15.44,"low":14.34,"turnover":1358390181.48,"source":"sina","quality":"historical_reconstructed"},
+    {"symbol":"sh601086","name":"国芳集团","trade_date":"2026-10-30","quote_time":"2026-10-30T10:10:23+08:00","captured_at":"2026-10-30T10:10:30+08:00","price":12.90,"previous_close":13.60,"open":12.83,"high":13.66,"low":12.83,"turnover":510546638,"source":"sina","quality":"historical_reconstructed"},
+    {"symbol":"sz000678","name":"襄阳轴承","trade_date":"2026-10-30","quote_time":"2026-10-30T10:10:24+08:00","captured_at":"2026-10-30T10:10:30+08:00","price":18.50,"previous_close":18.75,"open":18.56,"high":19.86,"low":18.36,"turnover":1986564210.36,"source":"sina","quality":"historical_reconstructed"},
+    {"symbol":"sh603228","name":"景旺电子","trade_date":"2026-10-30","quote_time":"2026-10-30T10:10:21+08:00","captured_at":"2026-10-30T10:10:30+08:00","price":66.47,"previous_close":69.23,"open":64.58,"high":66.58,"low":63.29,"turnover":953741048,"source":"sina","quality":"historical_reconstructed"},
+    {"symbol":"sz002929","name":"润建股份","trade_date":"2026-10-30","quote_time":"2026-10-30T10:10:24+08:00","captured_at":"2026-10-30T10:10:30+08:00","price":52.42,"previous_close":55.04,"open":52.37,"high":54.21,"low":51.95,"turnover":712307982.55,"source":"sina","quality":"historical_reconstructed"},
+    {"symbol":"sh603002","name":"宏昌电子","trade_date":"2026-10-30","quote_time":"2026-10-30T10:10:23+08:00","captured_at":"2026-10-30T10:10:30+08:00","price":13.86,"previous_close":12.82,"open":13.00,"high":13.86,"low":12.52,"turnover":642582105,"source":"sina","quality":"historical_reconstructed"},
+    {"symbol":"sh000001","name":"上证指数","trade_date":"2026-10-30","quote_time":"2026-10-30T10:10:23+08:00","captured_at":"2026-10-30T10:10:30+08:00","price":3616.3317,"previous_close":3651.4337,"open":3605.6451,"high":3624.03,"low":3595.2584,"turnover":286442905056,"source":"sina","quality":"historical_reconstructed"},
+    {"symbol":"sz399001","name":"深证成指","trade_date":"2026-10-30","quote_time":"2026-10-30T10:10:21+08:00","captured_at":"2026-10-30T10:10:30+08:00","price":10976.597,"previous_close":11138.198,"open":10871.126,"high":11008.01,"low":10853.599,"turnover":355877217451.073,"source":"sina","quality":"historical_reconstructed"},
+    {"symbol":"sz399006","name":"创业板指","trade_date":"2026-10-30","quote_time":"2026-10-30T10:10:21+08:00","captured_at":"2026-10-30T10:10:30+08:00","price":2461.152,"previous_close":2517.588,"open":2434.798,"high":2473.429,"low":2427.24,"turnover":177049603237.4,"source":"sina","quality":"historical_reconstructed"}
+  ],
+  "observations": [
+    {"observed_at":"2026-10-30T10:11:00+08:00","subject":"通信设备","event_time":"","content":"东方财富 BK0448 查询返回 18504.30 点，跌 2.60%，高 18567.63，低 18187.43；行情时间戳为 0，采集时间为近似值，不作为有效增量行情。","source_url":"https://stock2.eastmoney.com/hangye/hy448.html"},
+    {"observed_at":"2026-10-30T10:10:30+08:00","subject":"日韩股市","event_time":"2026-10-30T08:44:38+08:00","content":"报道时日经225跌1.51%；KOSPI跌3.87%，一度跌超4%；SK海力士跌约7%，三星电子跌约4%。非10:10同步行情。","source_url":"https://www.nbd.com.cn/articles/2026-10-30/4630220.html"}
+  ]
+}
