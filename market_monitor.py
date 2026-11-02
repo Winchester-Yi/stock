@@ -1,54 +1,76 @@
 #!/usr/bin/env python3
-"""Collect timestamped market snapshots and compare them with the previous snapshot."""
+"""Timestamp-aware market snapshots and deterministic incremental context (Python 3.9+)."""
 import argparse
 import datetime as dt
 import json
 import math
 import sqlite3
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+from market_calendar import ZONES, session_state, trading_minutes_between
 
 ROOT = Path(__file__).resolve().parent
 DB = ROOT / "market_data.sqlite3"
 TZ = ZoneInfo("Asia/Shanghai")
 SINA = "https://hq.sinajs.cn/list="
-EAST = "https://push2.eastmoney.com/api/qt/stock/get?secid=90.BK0448&fields=f43,f44,f45,f46,f48,f57,f58,f60,f170,f124"
+EAST = "https://push2.eastmoney.com/api/qt/stock/get"
 SYMBOLS = {
     "sz002185": "华天科技", "sh601086": "国芳集团", "sz000678": "襄阳轴承",
     "sh603228": "景旺电子", "sz002929": "润建股份", "sh603002": "宏昌电子",
     "sh000001": "上证指数", "sz399001": "深证成指", "sz399006": "创业板指",
 }
+INDICES = ("sh000001", "sz399001", "sz399006")
+SECTOR = "BK0448"
+OVERSEAS = {"N225": ("日经225", "JP", "100.N225"), "KS11": ("KOSPI", "KR", "100.KS11")}
+ALL_SYMBOLS = {**SYMBOLS, SECTOR: "通信设备", **{k: v[0] for k, v in OVERSEAS.items()}}
+COMPATIBLE_QUALITY = ("fresh", "historical_reconstructed")
+FIELDS = "f43,f44,f45,f46,f48,f57,f58,f60,f170,f124,f86"
+KEYS = ("symbol", "name", "trade_date", "quote_time", "captured_at", "price", "previous_close", "open", "high", "low", "turnover", "source", "quality")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS snapshots (
-  id INTEGER PRIMARY KEY, symbol TEXT NOT NULL, name TEXT NOT NULL,
-  trade_date TEXT NOT NULL, quote_time TEXT, captured_at TEXT NOT NULL,
-  price REAL NOT NULL, previous_close REAL NOT NULL, open REAL, high REAL, low REAL,
-  turnover REAL, source TEXT NOT NULL, quality TEXT NOT NULL,
-  UNIQUE(symbol, quote_time, source)
+ id INTEGER PRIMARY KEY, symbol TEXT NOT NULL, name TEXT NOT NULL,
+ trade_date TEXT NOT NULL, quote_time TEXT, captured_at TEXT NOT NULL,
+ price REAL NOT NULL, previous_close REAL NOT NULL, open REAL, high REAL, low REAL,
+ turnover REAL, source TEXT NOT NULL, quality TEXT NOT NULL,
+ UNIQUE(symbol, quote_time, source)
 );
 CREATE INDEX IF NOT EXISTS snapshots_lookup ON snapshots(symbol, trade_date, quote_time);
 CREATE TABLE IF NOT EXISTS observations (
-  id INTEGER PRIMARY KEY, observed_at TEXT NOT NULL, subject TEXT NOT NULL,
-  event_time TEXT, content TEXT NOT NULL, source_url TEXT NOT NULL,
-  UNIQUE(subject, event_time, content, source_url)
+ id INTEGER PRIMARY KEY, observed_at TEXT NOT NULL, subject TEXT NOT NULL,
+ event_time TEXT, content TEXT NOT NULL, source_url TEXT NOT NULL,
+ UNIQUE(subject, event_time, content, source_url)
+);
+CREATE TABLE IF NOT EXISTS fetch_runs (
+ id INTEGER PRIMARY KEY, started_at TEXT NOT NULL, ended_at TEXT NOT NULL,
+ statuses_json TEXT NOT NULL
 );
 """
 
 
-def connection():
-    db = sqlite3.connect(DB)
+def connection(path=None):
+    db = sqlite3.connect(str(path or DB))
     db.row_factory = sqlite3.Row
     db.executescript(SCHEMA)
     return db
 
 
-def request(url, encoding="utf-8"):
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn/"})
-    with urllib.request.urlopen(req, timeout=15) as response:
-        return response.read().decode(encoding)
+def request(url, encoding="utf-8", retries=1):
+    referrer = "https://finance.sina.com.cn/" if "sinajs" in url else "https://quote.eastmoney.com/"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Referer": referrer})
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=6) as response:
+                return response.read().decode(encoding)
+        except (urllib.error.URLError, TimeoutError, OSError):
+            if attempt == retries:
+                raise
+            time.sleep(0.25 * (attempt + 1))
 
 
 def valid_number(value):
@@ -59,114 +81,302 @@ def valid_number(value):
         return None
 
 
+def validate_prices(price, previous_close, high=None, low=None):
+    if price is None or previous_close is None or price <= 0 or previous_close <= 0:
+        raise ValueError("缺少正数价格或昨收")
+    if high is not None and low is not None and high > 0 and low > 0:
+        if low > high or not (low - 1e-7 <= price <= high + 1e-7):
+            raise ValueError("价格与日内高低不一致")
+
+
+def quote_quality(quote, received, market="CN", verified_timestamp=True):
+    if quote is None or not verified_timestamp:
+        return "unverified_time"
+    age = (received - quote).total_seconds()
+    if age < -5:
+        return "stale_or_future"
+    state, _ = session_state(received, market)
+    if state != "trading" and age > 120:
+        return "session_paused"
+    return "fresh" if age <= 120 else "stale_or_future"
+
+
 def insert(db, row):
-    keys = ("symbol", "name", "trade_date", "quote_time", "captured_at", "price", "previous_close", "open", "high", "low", "turnover", "source", "quality")
-    db.execute("INSERT OR IGNORE INTO snapshots (" + ",".join(keys) + ") VALUES (" + ",".join("?" for _ in keys) + ")", [row.get(k) for k in keys])
+    db.execute("INSERT OR IGNORE INTO snapshots (" + ",".join(KEYS) + ") VALUES (" + ",".join("?" for _ in KEYS) + ")", [row.get(k) for k in KEYS])
 
 
-def collect_sina(db, captured):
-    text = request(SINA + ",".join(SYMBOLS), "gb18030")
-    found = set()
-    for line in text.splitlines():
+def collect_sina(db):
+    raw = request(SINA + ",".join(SYMBOLS), "gb18030")
+    received = dt.datetime.now(TZ)  # Record time AFTER the network call.
+    statuses = {key: "missing" for key in SYMBOLS}
+    for line in raw.splitlines():
         if '="' not in line:
             continue
-        symbol = line.split('="', 1)[0].removeprefix("var hq_str_")
+        prefix, payload = line.split('="', 1)
+        symbol = prefix.removeprefix("var hq_str_")
         if symbol not in SYMBOLS:
             continue
-        values = line.split('="', 1)[1].split('"', 1)[0].split(",")
-        if len(values) < 32:
-            print(f"数据不足: {symbol}", file=sys.stderr)
-            continue
         try:
-            quote_dt = dt.datetime.strptime(values[30] + " " + values[31], "%Y-%m-%d %H:%M:%S").replace(tzinfo=TZ)
+            values = payload.split('"', 1)[0].split(",")
+            if len(values) < 32:
+                raise ValueError("字段不足")
+            quote = dt.datetime.strptime(values[30] + " " + values[31], "%Y-%m-%d %H:%M:%S").replace(tzinfo=TZ)
+            price, previous_close = valid_number(values[3]), valid_number(values[2])
+            high, low = valid_number(values[4]), valid_number(values[5])
+            validate_prices(price, previous_close, high, low)
+            quality = quote_quality(quote, received)
+            insert(db, dict(symbol=symbol, name=values[0] or SYMBOLS[symbol], trade_date=quote.date().isoformat(),
+                            quote_time=quote.isoformat(), captured_at=received.isoformat(), price=price,
+                            previous_close=previous_close, open=valid_number(values[1]), high=high, low=low,
+                            turnover=valid_number(values[9]), source="sina", quality=quality))
+            statuses[symbol] = quality
+        except (ValueError, IndexError, OverflowError) as exc:
+            statuses[symbol] = "invalid: " + str(exc)
+    return statuses
+
+
+def east_data(secid):
+    raw = request(EAST + "?secid=" + secid + "&fields=" + FIELDS)
+    result = json.loads(raw).get("data")
+    if not isinstance(result, dict):
+        raise ValueError("东财未返回数据")
+    return result, dt.datetime.now(TZ)
+
+
+def provider_timestamp(data, market):
+    # f124 is a Unix timestamp; f86 is a vendor update time, NOT a validated
+    # exchange tick timestamp. Only f124 can enable comparable fresh quotes.
+    unix = valid_number(data.get("f124"))
+    if unix and unix > 0:
+        try:
+            return dt.datetime.fromtimestamp(unix, ZONES[market]), True
+        except (ValueError, OverflowError, OSError):
+            pass
+    f86 = str(data.get("f86") or "")
+    if len(f86) in (12, 14) and f86.isdigit():
+        fmt = "%Y%m%d%H%M%S" if len(f86) == 14 else "%Y%m%d%H%M"
+        try:
+            return dt.datetime.strptime(f86, fmt).replace(tzinfo=ZONES[market]), False
         except ValueError:
-            print(f"行情时间无效: {symbol}", file=sys.stderr)
-            continue
-        price, prev = valid_number(values[3]), valid_number(values[2])
-        if not price or not prev or price <= 0 or prev <= 0:
-            print(f"行情价格无效: {symbol}", file=sys.stderr)
-            continue
-        age = (captured - quote_dt).total_seconds()
-        quality = "fresh" if 0 <= age <= 120 else "stale_or_future"
-        insert(db, dict(symbol=symbol, name=values[0], trade_date=values[30], quote_time=quote_dt.isoformat(), captured_at=captured.isoformat(), price=price, previous_close=prev, open=valid_number(values[1]), high=valid_number(values[4]), low=valid_number(values[5]), turnover=valid_number(values[9]), source="sina", quality=quality))
-        found.add(symbol)
-    for symbol in SYMBOLS.keys() - found:
-        print(f"未获取有效行情: {symbol}", file=sys.stderr)
-    return len(found)
+            pass
+    return None, False
 
 
-def collect_sector(db, captured):
-    data = json.loads(request(EAST)).get("data") or {}
-    if data.get("f58") != "通信设备":
-        raise ValueError("板块代码与名称不匹配")
+def collect_east(db, symbol, secid, market, expected_code=None, expected_name=None):
+    data, received = east_data(secid)
+    if expected_code and str(data.get("f57")) != expected_code:
+        raise ValueError("东财代码不匹配")
+    if expected_name and data.get("f58") != expected_name:
+        raise ValueError("东财名称不匹配")
     price, prev = valid_number(data.get("f43")), valid_number(data.get("f60"))
-    if not price or not prev or price <= 0 or prev <= 0:
-        raise ValueError("板块价格无效")
-    timestamp = valid_number(data.get("f124"))
-    quote = dt.datetime.fromtimestamp(timestamp, TZ) if timestamp and timestamp > 0 else None
-    quality = "fresh" if quote and 0 <= (captured - quote).total_seconds() <= 120 else ("stale_or_future" if quote else "unverified_time")
-    # A missing timestamp is never substituted with the capture time.
-    insert(db, dict(symbol="BK0448", name="通信设备", trade_date=quote.date().isoformat() if quote else captured.date().isoformat(), quote_time=quote.isoformat() if quote else None, captured_at=captured.isoformat(), price=price / 100, previous_close=prev / 100, open=valid_number(data.get("f46")) / 100 if valid_number(data.get("f46")) is not None else None, high=valid_number(data.get("f44")) / 100 if valid_number(data.get("f44")) is not None else None, low=valid_number(data.get("f45")) / 100 if valid_number(data.get("f45")) is not None else None, turnover=valid_number(data.get("f48")), source="eastmoney", quality=quality))
+    high, low = valid_number(data.get("f44")), valid_number(data.get("f45"))
+    # Existing BK0448 contract is hundredths. Overseas feed scaling is NOT
+    # guaranteed across instruments; values are diagnostic-only until verified.
+    scale = 100
+    validate_prices(price, prev, high, low)
+    quote, verified = provider_timestamp(data, market)
+    quality = quote_quality(quote, received, market, verified)
+    name = ALL_SYMBOLS[symbol]
+    local_now = received.astimezone(ZONES[market])
+    insert(db, dict(symbol=symbol, name=name, trade_date=quote.date().isoformat() if quote else local_now.date().isoformat(),
+                    quote_time=quote.isoformat() if quote else None, captured_at=received.isoformat(),
+                    price=price / scale, previous_close=prev / scale,
+                    open=(valid_number(data.get("f46")) or 0) / scale or None,
+                    high=high / scale if high is not None else None,
+                    low=low / scale if low is not None else None,
+                    turnover=valid_number(data.get("f48")), source="eastmoney", quality=quality))
     return quality
 
 
-def report(db, day):
-    rows = db.execute("SELECT * FROM snapshots WHERE trade_date=? ORDER BY captured_at DESC, id DESC", (day,)).fetchall()
+def select_snapshots(db, day):
+    """Prefer a reliable quote by quote_time; never let an unverified read displace it."""
+    rows = db.execute("SELECT * FROM snapshots WHERE trade_date=? ORDER BY id DESC", (day,)).fetchall()
     grouped = {}
     for row in rows:
         grouped.setdefault(row["symbol"], []).append(row)
-    print(f"交易日期 {day} | 最近记录与同日上一条有效行情比较")
-    print("名称 | 最新价 | 较昨收 | 较上一有效快照 | 行情时间 | 质量")
-    for symbol in [*SYMBOLS, "BK0448"]:
-        items = grouped.get(symbol, [])
-        if not items:
-            print(f"{SYMBOLS.get(symbol, '通信设备')} | 无数据")
+    result = {}
+    for symbol, items in grouped.items():
+        reliable = sorted((x for x in items if x["quote_time"] and x["quality"] in COMPATIBLE_QUALITY),
+                          key=lambda x: (x["quote_time"], x["id"]), reverse=True)
+        latest = reliable[0] if reliable else max(items, key=lambda x: (x["quote_time"] or "", x["id"]))
+        prev = next((x for x in reliable[1:] if x["quote_time"] < latest["quote_time"] and
+                     x["source"] == latest["source"]), None) if latest["quality"] in COMPATIBLE_QUALITY else None
+        result[symbol] = (latest, prev)
+    return result
+
+
+def _float(value, precision=4):
+    return round(value, precision) if value is not None and math.isfinite(value) else None
+
+
+def calculated(latest, previous, market):
+    price, close = latest["price"], latest["previous_close"]
+    result = {"pct_vs_close": _float(100 * (price / close - 1)), "interval_pct": None,
+              "interval_minutes": None, "turnover_delta": None, "turnover_per_min": None,
+              "price_position": None}
+    high, low = latest["high"], latest["low"]
+    if high is not None and low is not None and high > low:
+        result["price_position"] = _float((price - low) / (high - low))
+    if previous is None:
+        return result
+    begin, end = dt.datetime.fromisoformat(previous["quote_time"]), dt.datetime.fromisoformat(latest["quote_time"])
+    elapsed = (end - begin).total_seconds() / 60
+    if elapsed <= 0:
+        return result
+    result["interval_pct"] = _float(100 * (price / previous["price"] - 1))
+    result["interval_minutes"] = _float(elapsed, 2)
+    traded = trading_minutes_between(begin, end, market)
+    if latest["turnover"] is not None and previous["turnover"] is not None and latest["turnover"] >= previous["turnover"]:
+        result["turnover_delta"] = _float(latest["turnover"] - previous["turnover"], 2)
+        if traded > 0:
+            result["turnover_per_min"] = _float(result["turnover_delta"] / traded, 2)
+    return result
+
+
+def context(db, day, as_of=None):
+    as_of = as_of or dt.datetime.now(TZ)
+    selected = select_snapshots(db, day)
+    items = {}
+    for symbol, name in ALL_SYMBOLS.items():
+        market = OVERSEAS[symbol][1] if symbol in OVERSEAS else "CN"
+        state, calendar_verified = session_state(as_of, market)
+        base = {"symbol": symbol, "name": name, "market": market, "market_state": state,
+                "calendar_verified": calendar_verified, "quote": None, "metrics": None}
+        if symbol in selected:
+            latest, previous = selected[symbol]
+            quote_at = dt.datetime.fromisoformat(latest["quote_time"]) if latest["quote_time"] else None
+            age = (as_of - quote_at).total_seconds() if quote_at else None
+            age = max(0, age) if age is not None else None
+            current = (state == "trading" and latest["quality"] == "fresh" and
+                       age is not None and age <= 120 and age >= 0)
+            base["quote"] = {"price": latest["price"], "previous_close": latest["previous_close"],
+                             "quote_time": latest["quote_time"], "captured_at": latest["captured_at"],
+                             "source": latest["source"], "quality_at_capture": latest["quality"],
+                             "age_seconds": _float(age, 1), "current": current,
+                             "reference_only": not current}
+            base["metrics"] = calculated(latest, previous, market)
+            if not current:
+                base["metrics"]["interval_pct"] = None  # Do not issue predictions off expired quotes.
+                base["metrics"]["turnover_delta"] = None
+                base["metrics"]["turnover_per_min"] = None
+        items[symbol] = base
+    # A historical report must not display today's fetch status as if it belonged to that day.
+    last = db.execute("SELECT * FROM fetch_runs WHERE substr(started_at,1,10)=? ORDER BY id DESC LIMIT 1", (day,)).fetchone()
+    # Relative strength is computed only when both index and stock have aligned windows.
+    for symbol in SYMBOLS:
+        if symbol in INDICES or symbol not in selected:
             continue
-        latest = items[0]
-        prev = next((x for x in items[1:] if latest["quality"] == "fresh" and x["quality"] in ("fresh", "historical_reconstructed") and x["quote_time"] and x["quote_time"] < latest["quote_time"]), None)
-        change = (latest["price"] / latest["previous_close"] - 1) * 100
-        delta = f"{(latest['price'] / prev['price'] - 1) * 100:+.2f}% ({prev['quote_time'][11:19]}→{latest['quote_time'][11:19]})" if prev else "不可比较"
-        print(f"{latest['name']} | {latest['price']:.2f} | {change:+.2f}% | {delta} | {latest['quote_time'] or '未提供'} | {latest['quality']}")
-    print("提示：fresh 是采集时效检查，不代表目前仍实时；未提供时间的板块数据不可用于增量比较。")
+        bench = "sh000001" if symbol.startswith("sh") else "sz399001"
+        metric = items[symbol]["metrics"]
+        metric["relative_strength_pp"] = None
+        metric["benchmark"] = bench
+        if bench not in selected or not items[symbol]["quote"]["current"] or not items[bench]["quote"]["current"]:
+            continue
+        stock_latest, stock_prev = selected[symbol]
+        index_latest, index_prev = selected[bench]
+        if stock_prev is None or index_prev is None:
+            continue
+        start_gap = abs((dt.datetime.fromisoformat(stock_prev["quote_time"]) - dt.datetime.fromisoformat(index_prev["quote_time"])).total_seconds())
+        end_gap = abs((dt.datetime.fromisoformat(stock_latest["quote_time"]) - dt.datetime.fromisoformat(index_latest["quote_time"])).total_seconds())
+        if start_gap <= 120 and end_gap <= 120:
+            sm, im = metric["interval_pct"], items[bench]["metrics"]["interval_pct"]
+            if sm is not None and im is not None:
+                metric["relative_strength_pp"] = _float(sm - im)
+    fetch_run = (dict(started_at=last["started_at"], ended_at=last["ended_at"],
+                      statuses=json.loads(last["statuses_json"])) if last else None)
+    return {"date": day, "as_of": as_of.isoformat(), "timezone": "Asia/Shanghai",
+            "calendar_warning": "工作日仅按常规交易时段推定；未接入完整节假日/临停日历",
+            "market": [items[s] for s in INDICES], "overseas": [items[s] for s in OVERSEAS],
+            "watchlist": [items[s] for s in SYMBOLS if s not in INDICES] + [items[SECTOR]],
+            "fetch_run": fetch_run,
+            "source_note": "海外东财 f86 为供应商时间、非交易所时间；无可信报价时间时仅展示参考数值，不作可靠增量比较。"}
+
+
+def report(db, day):
+    output = context(db, day)
+    print(f"交易日期 {day} | 数据截至 {output['as_of']} | 本程序只计算指标，不生成研判")
+    print("名称 | 最新报价(参考) | 较昨收 | 区间变化 | 区间成交额(亿元) | 行情时间 | 状态")
+    for item in output["market"] + output["overseas"] + output["watchlist"]:
+        quote, metric = item["quote"], item["metrics"]
+        if not quote:
+            print(f"{item['name']} | 无数据 | — | — | — | — | {item['market_state']}")
+            continue
+        fmt = lambda x: "不可比较" if x is None else f"{x:+.2f}%"
+        amount = metric["turnover_delta"]
+        amount_str = f"{amount / 1e8:.2f}" if amount is not None else "不可比较"
+        state = "当前有效" if quote["current"] else "参考/过期"
+        print(f"{item['name']} | {quote['price']:.2f} | {fmt(metric['pct_vs_close'])} | "
+              f"{fmt(metric['interval_pct'])} | {amount_str} | {quote['quote_time'] or '未验证'} | "
+              f"{item['market_state']} / {quote['quality_at_capture']} / {state}")
+    print("注意：交易日历未完整校验；成交额为同源、同日的累计值差；海外数据仅作参考，需独立核对。")
+
+
+def seed(db):
+    fixture = json.loads((ROOT / "initial_snapshot.json").read_text(encoding="utf-8"))
+    for row in fixture["snapshots"]:
+        insert(db, row)
+    for row in fixture["observations"]:
+        db.execute("INSERT OR IGNORE INTO observations (observed_at,subject,event_time,content,source_url) VALUES (?,?,?,?,?)",
+                   (row["observed_at"], row["subject"], row["event_time"], row["content"], row["source_url"]))
+    print("初始化历史数据已导入（幂等）。")
+
+
+def fetch(db, overseas=True):
+    started = dt.datetime.now(TZ)
+    statuses = {symbol: "not_attempted" for symbol in ALL_SYMBOLS}
+    try:
+        statuses.update(collect_sina(db))
+    except Exception as exc:
+        for symbol in SYMBOLS:
+            statuses[symbol] = "error: " + str(exc)
+    try:
+        statuses[SECTOR] = collect_east(db, SECTOR, "90.BK0448", "CN", expected_code=SECTOR, expected_name="通信设备")
+    except Exception as exc:
+        statuses[SECTOR] = "error: " + str(exc)
+    if overseas:
+        for symbol, (_, market, secid) in OVERSEAS.items():
+            try:
+                statuses[symbol] = collect_east(db, symbol, secid, market, expected_code=symbol)
+            except Exception as exc:
+                statuses[symbol] = "error: " + str(exc)
+    ended = dt.datetime.now(TZ)
+    db.execute("INSERT INTO fetch_runs(started_at,ended_at,statuses_json) VALUES(?,?,?)",
+               (started.isoformat(), ended.isoformat(), json.dumps(statuses, ensure_ascii=False)))
+    db.commit()
+    current, _ = session_state(ended, "CN")
+    fresh = sum(statuses[s] == "fresh" for s in SYMBOLS)
+    print(f"行情采集完成 | A股 fresh={fresh}/{len(SYMBOLS)} | 状态={current} | 时刻={ended.isoformat()}")
+    for symbol, status in statuses.items():
+        if status not in ("fresh", "not_attempted"):
+            print(f"{ALL_SYMBOLS[symbol]}: {status}", file=sys.stderr)
+    report(db, ended.date().isoformat())
+    # Fail only for incomplete *live* CN market data, not during lunch/after close.
+    return 0 if current != "trading" or fresh == len(SYMBOLS) else 1
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("fetch")
-    p = sub.add_parser("report")
-    p.add_argument("--date", default=dt.datetime.now(TZ).date().isoformat())
-    sub.add_parser("seed", help="导入本次对话中记录的历史快照")
+    p_fetch = sub.add_parser("fetch")
+    p_fetch.add_argument("--no-overseas", action="store_true", help="跳过日韩尝试性采集")
+    for command in ("report", "context"):
+        p = sub.add_parser(command)
+        p.add_argument("--date", default=dt.datetime.now(TZ).date().isoformat())
+        if command == "context":
+            p.add_argument("--json", action="store_true", help="输出结构化 JSON（默认也为 JSON）")
+    sub.add_parser("seed")
     args = parser.parse_args()
     with connection() as db:
-        if args.command == "report":
-            report(db, args.date)
-            return
         if args.command == "seed":
-            fixture = json.loads((ROOT / "initial_snapshot.json").read_text(encoding="utf-8"))
-            for row in fixture["snapshots"]:
-                insert(db, row)
-            for row in fixture["observations"]:
-                db.execute("INSERT OR IGNORE INTO observations (observed_at,subject,event_time,content,source_url) VALUES (?,?,?,?,?)", (row["observed_at"], row["subject"], row["event_time"], row["content"], row["source_url"]))
-            print("历史数据已导入（重复导入会跳过）；采集时间为近似值，标记为 historical_reconstructed。")
-            return
-        now = dt.datetime.now(TZ)
-        successes = 0
-        try:
-            successes = collect_sina(db, now)
-            print(f"新浪有效行情: {successes}/{len(SYMBOLS)}")
-        except Exception as exc:
-            print(f"新浪采集失败: {exc}", file=sys.stderr)
-        try:
-            print(f"通信设备板块质量: {collect_sector(db, now)}")
-        except Exception as exc:
-            print(f"板块采集失败: {exc}", file=sys.stderr)
-        print(f"采集时间: {now.isoformat()}；日韩指数需另行查证有时间戳的来源。")
-        report(db, now.date().isoformat())
-        if successes < len(SYMBOLS):
-            db.commit()
-            sys.exit(1)
+            seed(db)
+        elif args.command == "fetch":
+            return fetch(db, overseas=not args.no_overseas)
+        elif args.command == "report":
+            report(db, args.date)
+        else:
+            print(json.dumps(context(db, args.date), ensure_ascii=False, indent=2))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
