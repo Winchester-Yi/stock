@@ -7,3 +7,5 @@ __pycache__/
 .claude/*.lock
 *.sqlite3
 reports/
+
+*.sqlite3.bak
