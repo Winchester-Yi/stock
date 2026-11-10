@@ -20,14 +20,14 @@ TZ = ZoneInfo("Asia/Shanghai")
 SINA = "https://hq.sinajs.cn/list="
 EAST = "https://push2.eastmoney.com/api/qt/stock/get"
 SYMBOLS = {
-    "sz002185": "华天科技", "sh601086": "国芳集团", "sz000678": "襄阳轴承",
-    "sh603228": "景旺电子", "sz002929": "润建股份", "sh603002": "宏昌电子",
+    "sz000678": "襄阳轴承", "sz002241": "歌尔股份", "sz002242": "九阳股份",
+    "sz002929": "润建股份", "sh600410": "华胜天成", "sh601086": "国芳集团",
+    "sh603002": "宏昌电子",
     "sh000001": "上证指数", "sz399001": "深证成指", "sz399006": "创业板指",
 }
 INDICES = ("sh000001", "sz399001", "sz399006")
-SECTOR = "BK0448"
 OVERSEAS = {"N225": ("日经225", "JP", "100.N225"), "KS11": ("KOSPI", "KR", "100.KS11")}
-ALL_SYMBOLS = {**SYMBOLS, SECTOR: "通信设备", **{k: v[0] for k, v in OVERSEAS.items()}}
+ALL_SYMBOLS = {**SYMBOLS, **{k: v[0] for k, v in OVERSEAS.items()}}
 COMPATIBLE_QUALITY = ("fresh", "historical_reconstructed")
 FIELDS = "f43,f44,f45,f46,f48,f57,f58,f60,f170,f124,f86"
 KEYS = ("symbol", "name", "trade_date", "quote_time", "captured_at", "price", "previous_close", "open", "high", "low", "turnover", "source", "quality")
@@ -197,26 +197,9 @@ def collect_east(db, symbol, secid, market, expected_code=None, expected_name=No
     high, low = (optional_number(data.get(k), k) for k in ("f44", "f45"))
     opening, turnover = (optional_number(data.get(k), k) for k in ("f46", "f48"))
     validate_prices(price, prev, high, low, opening, turnover)
-    if market != "CN":
-        # f124 is NOT an exchange-verified tick and the numeric f43/f60 scale
-        # is NOT validated for overseas secids. Never persist an invented /100
-        # price in snapshots or expose it to Claude as a tradable quote.
-        return "unverified_contract"
-    # BK0448's known feed contract uses hundredths; it is distinct from the
-    # unverified, instrument-specific overseas feed contract.
-    scale = 100
-    quote, verified = provider_timestamp(data, market)
-    quality = quote_quality(quote, received, market, verified)
-    name = ALL_SYMBOLS[symbol]
-    local_now = received.astimezone(ZONES[market])
-    insert(db, dict(symbol=symbol, name=name, trade_date=quote.date().isoformat() if quote else local_now.date().isoformat(),
-                    quote_time=quote.isoformat() if quote else None, captured_at=received.isoformat(),
-                    price=price / scale, previous_close=prev / scale,
-                    open=opening / scale if opening else None,
-                    high=high / scale if high is not None else None,
-                    low=low / scale if low is not None else None,
-                    turnover=turnover, source="eastmoney", quality=quality))
-    return quality
+    # Overseas feed units and exchange timestamps are not independently verified.
+    # Do not persist or expose an invented price.
+    return "unverified_contract"
 
 
 def select_snapshots(db, day):
@@ -289,9 +272,8 @@ def context(db, day, as_of=None):
                 continue
             quote_at = dt.datetime.fromisoformat(latest["quote_time"]) if latest["quote_time"] else None
             age = (as_of - quote_at).total_seconds() if quote_at else None
-            age = max(0, age) if age is not None else None
             current = (state == "trading" and latest["quality"] == "fresh" and
-                       age is not None and age <= 120 and age >= 0)
+                       age is not None and 0 <= age <= 120)
             base["quote"] = {"price": latest["price"], "previous_close": latest["previous_close"],
                              "quote_time": latest["quote_time"], "captured_at": latest["captured_at"],
                              "source": latest["source"], "quality_at_capture": latest["quality"],
@@ -332,7 +314,7 @@ def context(db, day, as_of=None):
     return {"date": day, "as_of": as_of.isoformat(), "timezone": "Asia/Shanghai",
             "calendar_warning": "工作日仅按常规交易时段推定；未接入完整节假日/临停日历",
             "market": [items[s] for s in INDICES], "overseas": [items[s] for s in OVERSEAS],
-            "watchlist": [items[s] for s in SYMBOLS if s not in INDICES] + [items[SECTOR]],
+            "watchlist": [items[s] for s in SYMBOLS if s not in INDICES],
             "fetch_run": fetch_run,
             "source_note": "海外东财 f124/f86 与价格精度未独立核实：不保存海外猜测点位；旧海外记录的数值已隔离。历史有效区间指标可供回看，但不得冒充实时结论。"}
 
@@ -385,8 +367,6 @@ def assess_fetch(statuses, market_state):
         return "market_closed", 0
     if any(statuses[symbol] != "fresh" for symbol in SYMBOLS):
         return "degraded", 1
-    if statuses[SECTOR] != "fresh":
-        return "degraded", 1
     # A reported overseas quote with unknown units/time cannot be called a
     # complete market analysis, even if the HTTP request itself succeeded.
     if any(statuses[s] != "not_attempted" and statuses[s] != "fresh" for s in OVERSEAS):
@@ -402,10 +382,6 @@ def fetch(db, overseas=True):
     except Exception as exc:
         for symbol in SYMBOLS:
             statuses[symbol] = "error: " + str(exc)
-    try:
-        statuses[SECTOR] = collect_east(db, SECTOR, "90.BK0448", "CN", expected_code=SECTOR, expected_name="通信设备")
-    except Exception as exc:
-        statuses[SECTOR] = "error: " + str(exc)
     if overseas:
         for symbol, (_, market, secid) in OVERSEAS.items():
             try:
