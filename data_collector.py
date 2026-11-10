@@ -1,0 +1,69 @@
+"""AKShare adapter. Endpoint contracts are validated; no partial bar is persisted."""
+import datetime as dt
+import math
+from zoneinfo import ZoneInfo
+import storage
+
+TZ = ZoneInfo('Asia/Shanghai')
+
+def num(value, optional=False):
+    if value is None or str(value).strip() in ('', '-', '--', 'nan', 'None'):
+        if optional: return None
+        raise ValueError('missing numeric field')
+    value = float(value)
+    if not math.isfinite(value): raise ValueError('non-finite numeric field')
+    return value
+
+def end_time(value, timeframe):
+    t = dt.datetime.fromisoformat(str(value)).replace(tzinfo=TZ)
+    if timeframe == 'daily': return t.replace(hour=15,minute=0,second=0,microsecond=0)
+    # Eastmoney minute bars are end-labelled; reject timestamps outside expected session boundaries.
+    minute = t.hour*60+t.minute
+    valid = {15: set(range(585,691,15)) | set(range(795,901,15)), 60: {630,690,840,900}}[int(timeframe)]
+    if minute not in valid or t.second or t.weekday() >= 5: raise ValueError('unexpected bar end/session')
+    return t
+
+def normalize(frame, symbol, timeframe, captured):
+    out=[]
+    for row in frame.to_dict('records'):
+        end=end_time(row.get('时间', row.get('日期时间', row.get('日期'))), timeframe)
+        if end > captured: continue
+        opening, high, low, close = [num(row.get(k)) for k in ('开盘','最高','最低','收盘')]
+        vol=num(row.get('成交量'),True); amount=num(row.get('成交额'),True)
+        if min(opening,high,low,close)<=0 or not low<=min(opening,close)<=max(opening,close)<=high or (vol is not None and vol<0) or (amount is not None and amount<0): raise ValueError('invalid OHLCV')
+        # AKShare Eastmoney stock/index volume is lots; board volume units vary and are not assumed.
+        if vol is not None and len(symbol)==6 and symbol.isdigit(): vol *= 100
+        else: vol=None
+        out.append(dict(symbol=symbol,timeframe=timeframe,bar_end=end.isoformat(),open=opening,high=high,low=low,close=close,volume=vol,amount=amount,adjust='',source='akshare',captured_at=captured.isoformat(),quality='valid'))
+    return out
+
+def collect(db, symbol, kind, timeframe, board_type=None):
+    import akshare as ak
+    start='1979-09-01 09:30:00'; end='2222-01-01 15:00:00'
+    if kind=='stock' and timeframe=='daily':
+        frame=ak.stock_zh_a_hist(symbol=symbol, period='daily', start_date='19790901', end_date=dt.datetime.now(TZ).strftime('%Y%m%d'), adjust='')
+    elif kind=='stock':
+        frame=ak.stock_zh_a_hist_min_em(symbol=symbol, start_date=start, end_date=end, period=timeframe, adjust='')
+    elif kind=='index':
+        frame=ak.index_zh_a_hist_min_em(symbol=symbol[2:] if symbol.startswith(('sh','sz')) else symbol, period=timeframe, start_date=start, end_date=end)
+    else:
+        fn = ak.stock_board_industry_hist_min_em if board_type=='industry' else ak.stock_board_concept_hist_min_em
+        frame=fn(symbol=symbol, period=timeframe)
+    captured=dt.datetime.now(TZ)
+    key = 'board:'+board_type+':'+symbol if kind=='board' else symbol
+    rows=normalize(frame,key,timeframe,captured)
+    if not rows: raise ValueError('no completed valid bars returned')
+    storage.save_bars(db,rows)
+    return len(rows)
+
+def collect_members(db, board, board_type):
+    import akshare as ak
+    fn=ak.stock_board_industry_cons_em if board_type=='industry' else ak.stock_board_concept_cons_em
+    frame=fn(symbol=board); now=dt.datetime.now(TZ).isoformat(); rows=[]
+    for r in frame.to_dict('records'):
+        code=str(r.get('代码','')).zfill(6)
+        if len(code)!=6 or not code.isdigit(): continue
+        rows.append((now,board,board_type,code,num(r.get('涨跌幅'),True)))
+    if not rows: raise ValueError('empty sector constituents')
+    db.executemany('INSERT OR IGNORE INTO sector_members VALUES (?,?,?,?,?)',rows); db.commit()
+    return len(rows)

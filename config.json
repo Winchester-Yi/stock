@@ -1,0 +1,19 @@
+{
+  "history": {"15": 160, "60": 80, "daily": 120},
+  "watchlist": ["000678", "002241", "002242", "002929", "600410", "601086", "603002"],
+  "market_indices": ["sh000001", "sz399001", "sz399006"],
+  "sector_mapping": {},
+  "news": {
+    "active_event_days": 7,
+    "queries": {
+      "geopolitics": "(Iran OR Israel OR Russia OR Ukraine) (strike OR ceasefire OR sanctions)",
+      "us_trade": "China tariff trade restrictions",
+      "us_technology": "China BIS export controls semiconductor",
+      "fed_economy": "Federal Reserve FOMC CPI inflation rates",
+      "commodities_shipping": "oil copper gold Red Sea Hormuz supply disruption",
+      "china_policy": "国务院 央行 财政部 发改委 政策 产业",
+      "company_watchlist": "襄阳轴承 OR 歌尔股份 OR 九阳股份 OR 润建股份 OR 华胜天成 OR 国芳集团 OR 宏昌电子"
+    }
+  },
+  "claude": {"command": "claude"}
+}
