@@ -60,3 +60,32 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(analysis.features(bars)['local_pivots'],[])
 
 if __name__=='__main__': unittest.main()
+
+class WorkflowIntegrationTests(unittest.TestCase):
+    def test_run_and_evaluate_with_simulated_provider_and_claude(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); db=storage.connect(root/'workflow.db')
+            now=dt.datetime.now(TZ); end=now-dt.timedelta(minutes=1)
+            def collect(db,symbol,kind,timeframe,board_type=None):
+                delta=dt.timedelta(days=1) if timeframe=='daily' else dt.timedelta(minutes=int(timeframe))
+                rows=[]
+                for i in range(5):
+                    t=end-(4-i)*delta
+                    rows.append(dict(symbol=symbol,timeframe=timeframe,bar_end=t.isoformat(),open=10,high=11,low=9,close=10+i/10,volume=100,amount=1000,adjust='',source='akshare',captured_at=now.isoformat(),quality='valid'))
+                storage.save_bars(db,rows)
+                return len(rows)
+            class Result: pass
+            def fake_claude(args,input,**kwargs):
+                context=json.loads(input[input.index('{'):]); meta=context['meta']
+                response={'symbol':meta['symbol'],'as_of':meta['as_of'],'direction':'UNCERTAIN','action':'WAIT','scenarios':[{'name':'range','evidence':'test','invalidation':'test'}],'evidence_ids':[],'uncertainties':['test'],'reasoning':'test','trigger':'wait','risk':'test'}
+                result=Result(); result.stdout=json.dumps({'result':json.dumps(response)}); return result
+            cfg={'history':{},'market_indices':[],'sector_mapping':{},'news':{'active_event_days':7},'claude':{'command':'claude'}}
+            with patch.object(sa,'ROOT',root),patch.object(dc,'collect',side_effect=collect),patch.object(sa.subprocess,'run',side_effect=fake_claude):
+                sa.run(db,cfg,'002241')
+            run=db.execute('SELECT * FROM analysis_runs').fetchone(); self.assertEqual(json.loads(run['decision_json'])['action'],'WAIT')
+            self.assertTrue(Path(run['report_path']).exists())
+            rows=[]
+            for i in range(1,5):
+                rows.append(dict(symbol='002241',timeframe='15',bar_end=(end+dt.timedelta(minutes=15*i)).isoformat(),open=10.4,high=11,low=10,close=10.5,volume=100,amount=1000,adjust='',source='akshare',captured_at=(now+dt.timedelta(minutes=15*i)).isoformat(),quality='valid'))
+            storage.save_bars(db,rows); sa.evaluate(db)
+            self.assertIsNotNone(db.execute('SELECT evaluated_json FROM analysis_runs').fetchone()[0]); db.close()

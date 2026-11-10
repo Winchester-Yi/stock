@@ -2,6 +2,7 @@
 import datetime as dt
 import statistics
 import storage
+import events
 
 def features(bars):
     if len(bars)<3: return {'status':'insufficient','count':len(bars)}
@@ -33,5 +34,7 @@ def build(db, symbol, config, as_of):
             if len(sb)==len(bb)==2 and [x['bar_end'] for x in sb]==[x['bar_end'] for x in bb]: relative=(sb[-1]['close']/sb[-2]['close']-bb[-1]['close']/bb[-2]['close'])*100
             boards.append({'name':board,'type':typ,'features':f,'relative_return_pp':relative,'breadth':sum(x>0 for x in changes)/len(changes) if changes else None,'breadth_as_of':m,'valid_members':len(changes)})
     indices={s:features(storage.bars_at(db,s,'15',stamp)) for s in config.get('market_indices',[])}
-    recent=storage.events_at(db,stamp,(as_of-dt.timedelta(days=config['news']['active_event_days'])).isoformat())
-    return {'meta':{'as_of':stamp,'symbol':symbol,'data_quality':'insufficient' if stock['15']['status']!='ok' else 'requires_freshness_check','algorithm_version':'simple-v1','notice':'未复权；跨除权日结构不可直接比较；收盘集合竞价包含于最后一根K线'},'stock':stock,'market':indices,'sectors':boards,'events':recent,'previous_decision':storage.previous(db,symbol,stamp),'execution':{'position':'unknown','sellable_quantity':None,'price_limit':'unknown','liquidity':'unknown','auto_trade':False}}
+    recent=events.as_of(db,stamp,(as_of-dt.timedelta(days=config['news']['active_event_days'])).isoformat())
+    lhb=[dict(r) for r in db.execute('''SELECT * FROM lhb_records b WHERE symbol=? AND captured_at<=? AND trade_date<=? AND captured_at=(SELECT MAX(captured_at) FROM lhb_records x WHERE x.symbol=b.symbol AND x.trade_date=b.trade_date AND x.reason=b.reason AND x.captured_at<=?) ORDER BY trade_date DESC LIMIT 20''',(symbol,stamp,as_of.date().isoformat(),stamp))]
+    lhb_seats=[dict(r) for r in db.execute('''SELECT * FROM lhb_seats b WHERE symbol=? AND captured_at<=? AND trade_date<=? AND captured_at=(SELECT MAX(captured_at) FROM lhb_seats x WHERE x.symbol=b.symbol AND x.trade_date=b.trade_date AND x.reason=b.reason AND x.side=b.side AND x.department=b.department AND x.captured_at<=?) ORDER BY trade_date DESC LIMIT 100''',(symbol,stamp,as_of.date().isoformat(),stamp))]
+    return {'meta':{'as_of':stamp,'symbol':symbol,'data_quality':'insufficient' if stock['15']['status']!='ok' else 'requires_freshness_check','algorithm_version':'simple-v1','notice':'未复权；跨除权日结构不可直接比较；收盘集合竞价包含于最后一根K线'},'stock':stock,'market':indices,'sectors':boards,'events':recent,'longhubang':{'records':lhb,'seats':lhb_seats,'notice':'盘后披露，席位净额不代表全市场资金'},'previous_decision':storage.previous(db,symbol,stamp),'execution':{'position':'unknown','sellable_quantity':None,'price_limit':'unknown','liquidity':'unknown','auto_trade':False}}

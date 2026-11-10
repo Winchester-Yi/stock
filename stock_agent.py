@@ -10,6 +10,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 import analysis
 import data_collector
+import events
+import lhb_collector
 import news_collector
 import storage
 
@@ -90,14 +92,21 @@ def evaluate(db):
 
 def main():
     parser=argparse.ArgumentParser(); sub=parser.add_subparsers(dest='command',required=True)
-    for cmd in ('init','news','evaluate'): sub.add_parser(cmd)
+    for cmd in ('init','evaluate','aggregate','enrich'): sub.add_parser(cmd)
+    p=sub.add_parser('news'); p.add_argument('--extract',action='store_true',help='调用Claude批量提取事件主张和影响假设')
+    p=sub.add_parser('lhb'); p.add_argument('--date',required=True,help='交易日期 YYYYMMDD'); p.add_argument('--source',choices=('auto','akshare','web'),default='auto'); p.add_argument('--all',action='store_true',help='采集全部上榜股票及席位'); p.add_argument('--no-seats',action='store_true')
     for cmd in ('run','show'):
         p=sub.add_parser(cmd); p.add_argument('--symbol',required=cmd=='show')
     args=parser.parse_args(); cfg=config()
     with storage.connect(DB,backup=args.command=='init') as db:
         if args.command=='init': print('数据库已初始化:',DB)
         elif args.command=='news':
-            count,errors=news_collector.collect(db,cfg); print(serialized({'new_articles':count,'errors':errors})); return 1 if errors else 0
+            count,errors=news_collector.collect(db,cfg); grouped=events.aggregate(db); extracted=events.enrich(db,cfg) if args.extract else None; print(serialized({'new_articles':count,'aggregation':grouped,'extraction':extracted,'errors':errors})); return 1 if errors else 0
+        elif args.command=='aggregate': print(serialized(events.aggregate(db)))
+        elif args.command=='enrich': print(serialized(events.enrich(db,cfg)))
+        elif args.command=='lhb':
+            watchlist=None if args.all else cfg['watchlist']
+            result=lhb_collector.collect(db,args.date,watchlist,args.source,not args.no_seats); print(serialized(result)); return 1 if result['seat_errors'] else 0
         elif args.command=='evaluate': evaluate(db)
         elif args.command=='show':
             row=db.execute('SELECT * FROM analysis_runs WHERE symbol=? ORDER BY as_of DESC,id DESC LIMIT 1',(args.symbol,)).fetchone()
@@ -113,4 +122,4 @@ def main():
     return 0
 if __name__=='__main__':
     try: sys.exit(main())
-    except (ValueError,OSError,subprocess.SubprocessError) as exc: print(str(exc),file=sys.stderr); sys.exit(1)
+    except (ValueError,OSError,RuntimeError,subprocess.SubprocessError) as exc: print(str(exc),file=sys.stderr); sys.exit(1)

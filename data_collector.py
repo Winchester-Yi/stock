@@ -1,6 +1,11 @@
 """AKShare adapter. Endpoint contracts are validated; no partial bar is persisted."""
 import datetime as dt
 import math
+import json
+import urllib.parse
+import urllib.request
+import urllib.error
+import time
 from zoneinfo import ZoneInfo
 import storage
 
@@ -45,13 +50,36 @@ def collect(db, symbol, kind, timeframe, board_type=None):
     elif kind=='stock':
         frame=ak.stock_zh_a_hist_min_em(symbol=symbol, start_date=start, end_date=end, period=timeframe, adjust='')
     elif kind=='index':
-        frame=ak.index_zh_a_hist_min_em(symbol=symbol[2:] if symbol.startswith(('sh','sz')) else symbol, period=timeframe, start_date=start, end_date=end)
+        # AKShare's index symbol discovery traverses the whole market; the exchange
+        # prefix here is explicit, so the public web endpoint needs no discovery.
+        if not (symbol.startswith(('sh','sz')) and len(symbol)==8 and symbol[2:].isdigit()): raise ValueError('index requires sh/sz prefix and six digits')
+        params={'secid':('1.' if symbol.startswith('sh') else '0.')+symbol[2:],'fields1':'f1,f2,f3,f4,f5,f6','fields2':'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61','klt':timeframe,'fqt':'0','beg':'0','end':'20500000'}
+        url='https://push2his.eastmoney.com/api/qt/stock/kline/get?'+urllib.parse.urlencode(params)
+        req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Referer':'https://quote.eastmoney.com/'})
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(req,timeout=15) as response: payload=json.load(response)
+                break
+            except (urllib.error.URLError, TimeoutError, OSError):
+                if attempt==2: raise
+                time.sleep(0.5*(attempt+1))
+        data=payload.get('data')
+        if not isinstance(data,dict) or str(data.get('code'))!=symbol[2:] or not isinstance(data.get('klines'),list): raise ValueError('index data missing or code mismatch')
+        import pandas as pd
+        parsed=[]
+        for item in data['klines']:
+            cells=item.split(',')
+            if len(cells)<7: raise ValueError('index bar has insufficient fields')
+            parsed.append(dict(zip(('时间','开盘','收盘','最高','最低','成交量','成交额'),cells[:7])))
+        frame=pd.DataFrame(parsed)
     else:
         fn = ak.stock_board_industry_hist_min_em if board_type=='industry' else ak.stock_board_concept_hist_min_em
         frame=fn(symbol=symbol, period=timeframe)
     captured=dt.datetime.now(TZ)
     key = 'board:'+board_type+':'+symbol if kind=='board' else symbol
     rows=normalize(frame,key,timeframe,captured)
+    if kind=='index':
+        for row in rows: row['source']='eastmoney-web'
     if not rows: raise ValueError('no completed valid bars returned')
     storage.save_bars(db,rows)
     return len(rows)
