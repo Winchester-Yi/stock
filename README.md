@@ -2,6 +2,14 @@
 
 保留原有 market_monitor 命令。新增单机 Python + SQLite + Claude CLI 研究流程，不提供定时器和自动下单。
 
+## 主要模式：手动使用 Claude Agent
+
+在项目根目录手动启动已安装并登录的 `claude`，向它提出研究任务，例如“分析 002241 的 15—60 分钟走势”。Claude 按 `CLAUDE.md` 和 `docs/claude/manual-research.md` 自主选择、执行数据脚本并解释结果。脚本调用可能需要你按 Claude CLI 的权限提示授权；网络不可用、数据不足时须报告限制。项目不会替你启动 Claude。
+
+首次安装依赖并运行 `python stock_agent.py init`；按需配置 `config.json` 的板块映射。独立数据接口可用 `python research_data.py --help` 查看。手动研究结果不会自动写入 `analysis_runs` 或进入 `evaluate`，除非另行实现保存机制。
+
+## 保留模式：Python 编排
+
 ```bash
 python -m pip install -r requirements.txt
 python stock_agent.py init
