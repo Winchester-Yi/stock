@@ -37,6 +37,8 @@ class EventAndLhbTests(unittest.TestCase):
         with patch.object(events.subprocess,'run') as run:
             run.return_value.stdout=json.dumps({'result':json.dumps(extraction)})
             self.assertEqual(events.enrich(self.db,{'news':{'active_event_days':7},'claude':{'command':'claude'}},now)['assessed'],1)
+            self.assertIn('新闻采集、事件聚合与提取',run.call_args.kwargs['input'])
+            self.assertNotIn('15 分钟个股研究与决策',run.call_args.kwargs['input'])
         old=events.as_of(self.db,now.isoformat(),'2000-01-01T00:00:00+08:00')
         self.assertIsNone(old[0]['assessment'])
         later=(now+dt.timedelta(seconds=2)).isoformat()
@@ -45,7 +47,7 @@ class EventAndLhbTests(unittest.TestCase):
         now=dt.datetime.now(dt.timezone.utc).astimezone(dt.timezone(dt.timedelta(hours=8)))
         self.article('a','Federal Reserve holds interest rates steady',now.isoformat(),'macro'); events.aggregate(self.db)
         script=Path(self.tmp.name)/'fake_claude'
-        script.write_text("#!/usr/bin/env python3\nimport json,sys\ns=sys.stdin.read(); x=json.loads(s[s.index('\\n')+1:]); out={'events':[{'event_id':e['event_id'],'claims':[],'impacts':[],'uncertainties':['unverified']} for e in x]}; print(json.dumps({'result':json.dumps(out)}))\n")
+        script.write_text("#!/usr/bin/env python3\nimport json,sys\ns=sys.stdin.read(); x=json.loads(s.split('输入数据JSON:\\n',1)[1]); out={'events':[{'event_id':e['event_id'],'claims':[],'impacts':[],'uncertainties':['unverified']} for e in x]}; print(json.dumps({'result':json.dumps(out)}))\n")
         script.chmod(0o755)
         result=events.enrich(self.db,{'news':{'active_event_days':7},'claude':{'command':str(script)}},now)
         self.assertEqual(result['assessed'],1)

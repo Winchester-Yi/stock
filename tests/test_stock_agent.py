@@ -65,6 +65,8 @@ class WorkflowIntegrationTests(unittest.TestCase):
     def test_run_and_evaluate_with_simulated_provider_and_claude(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); db=storage.connect(root/'workflow.db')
+            import shutil
+            shutil.copytree(sa.ROOT/'docs',root/'docs')
             now=dt.datetime.now(TZ); end=now-dt.timedelta(minutes=1)
             def collect(db,symbol,kind,timeframe,board_type=None):
                 delta=dt.timedelta(days=1) if timeframe=='daily' else dt.timedelta(minutes=int(timeframe))
@@ -76,7 +78,9 @@ class WorkflowIntegrationTests(unittest.TestCase):
                 return len(rows)
             class Result: pass
             def fake_claude(args,input,**kwargs):
-                context=json.loads(input[input.index('{'):]); meta=context['meta']
+                assert '15 分钟个股研究与决策' in input
+                assert '新闻采集、事件聚合与提取' not in input
+                context=json.loads(input.split('输入数据JSON:\n',1)[1]); meta=context['meta']
                 response={'symbol':meta['symbol'],'as_of':meta['as_of'],'direction':'UNCERTAIN','action':'WAIT','scenarios':[{'name':'range','evidence':'test','invalidation':'test'}],'evidence_ids':[],'uncertainties':['test'],'reasoning':'test','trigger':'wait','risk':'test'}
                 result=Result(); result.stdout=json.dumps({'result':json.dumps(response)}); return result
             cfg={'history':{},'market_indices':[],'sector_mapping':{},'news':{'active_event_days':7},'claude':{'command':'claude'}}
