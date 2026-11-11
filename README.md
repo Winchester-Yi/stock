@@ -40,3 +40,9 @@ python stock_agent.py aggregate                           # 对未归组报道�
 可通过 `python stock_agent.py news --extract` 在采集归组后调用 Claude 批量提取，或用 `python stock_agent.py enrich` 单独处理尚未分析或新增了报道的事件。提取结果包括带文章 ID 的报道主张、影响对象与机制、方向、验证与证伪条件；这些是模型提取的未核实内容。程序检查结构和引用归属，并按实际提取完成时间追加保存，历史查询不会看到未来提取结果。此功能需要本机 Claude CLI 已安装并完成认证。
 
 Claude 的任务入口及按需参考文档见 `CLAUDE.md`。自动分析和事件提取会分别注入对应的参考规范；这两个非交互 Claude 子进程的工具访问仍然关闭。
+
+## 统一按需采集
+
+`python research_data.py refresh --symbol 002241 --news --hotspots` 按缓存状态逐项采集，`--lhb-date YYYYMMDD` 可额外采集指定日龙虎榜；`--force` 忽略缓存；`config.json` 的 `refresh_ttl_seconds` 可设置缓存最长秒数。默认只抓个股、配置的指数及关联板块，新闻、龙虎榜和板块榜单均需显式指定。各项成功、失败和上次成功时间保存在 SQLite；存在失败时返回非零，部分成功数据仍保留。缓存年龄和时间边界仅用于减少请求，不保证数据源新鲜或已开市。
+
+`python research_data.py hotspots --type industry --limit 10` 读取最近的板块涨幅榜及上次排名，不采集全市场个股。榜单依赖 AKShare 的东方财富板块列表，覆盖、更新频率及实时性需现场验证；目前无成交额排名。未采集榜单时返回 missing；候选板块需要进一步核查。当前未接入完整交易日历、实时快照或可控制底层请求的超时/重试策略；工作日不能保证开市。

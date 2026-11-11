@@ -1,7 +1,23 @@
 {
-  "history": {"15": 160, "60": 80, "daily": 120},
-  "watchlist": ["000678", "002241", "002242", "002929", "600410", "601086", "603002"],
-  "market_indices": ["sh000001", "sz399001", "sz399006"],
+  "history": {
+    "15": 160,
+    "60": 80,
+    "daily": 120
+  },
+  "watchlist": [
+    "000678",
+    "002241",
+    "002242",
+    "002929",
+    "600410",
+    "601086",
+    "603002"
+  ],
+  "market_indices": [
+    "sh000001",
+    "sz399001",
+    "sz399006"
+  ],
   "sector_mapping": {},
   "news": {
     "active_event_days": 7,
@@ -15,5 +31,16 @@
       "company_watchlist": "襄阳轴承 OR 歌尔股份 OR 九阳股份 OR 润建股份 OR 华胜天成 OR 国芳集团 OR 宏昌电子"
     }
   },
-  "claude": {"command": "claude"}
+  "claude": {
+    "command": "claude"
+  },
+  "refresh_ttl_seconds": {
+    "15": 900,
+    "60": 3600,
+    "daily": 86400,
+    "members": 86400,
+    "news": 1800,
+    "lhb": 86400,
+    "ranking": 300
+  }
 }

@@ -8,7 +8,7 @@
 
 | 任务 | 输入与入口 | 按需阅读 |
 | --- | --- | --- |
-| 手动 Claude 主导个股研究（主要模式） | 用户在仓库根目录手动运行 `claude`，交互中提出股票与分析任务 | [手动研究流程与指标](docs/claude/manual-research.md)；需要理论解释时读 [个股研究与决策](docs/claude/stock-research.md) |
+| 手动 Claude 主导个股研究（主要模式） | 用户在仓库根目录手动运行 `claude`，交互中提出股票与分析任务 | [手动研究流程](docs/claude/manual-research.md) 和 [分析框架](docs/claude/analysis-framework.md) |
 | Python 编排个股研究（保留模式） | `python3 stock_agent.py run --symbol 002241`；不指定代码则遍历关注列表 | [个股研究与决策](docs/claude/stock-research.md) |
 | 新闻采集、归组和事件提取 | `python3 stock_agent.py news`；需要 Claude 提取时用 `news --extract` 或 `enrich` | [新闻与事件](docs/claude/news-events.md) |
 | 龙虎榜采集与解读 | `python3 stock_agent.py lhb --date YYYYMMDD` | [数据、龙虎榜与验证](docs/claude/data-and-validation.md) |
