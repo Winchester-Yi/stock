@@ -4,6 +4,7 @@ import hashlib
 import json
 from zoneinfo import ZoneInfo
 import market_calendar
+import trade_clock
 
 TZ = ZoneInfo('Asia/Shanghai')
 
@@ -41,11 +42,7 @@ def timestamp(value):
 
 def last_boundary(now, timeframe):
     if now.weekday() >= 5: return None
-    ends = {'15': [(9,45),(10,0),(10,15),(10,30),(10,45),(11,0),(11,15),(11,30),
-                   (13,15),(13,30),(13,45),(14,0),(14,15),(14,30),(14,45),(15,0)],
-            '60': [(10,30),(11,30),(14,0),(15,0)], 'daily': [(15,0)]}
-    return max((now.replace(hour=h,minute=m,second=0,microsecond=0)
-                for h,m in ends[timeframe] if (h,m) <= (now.hour,now.minute)), default=None)
+    return max((t for t in trade_clock.Calendar().ends(now.date(),timeframe) if t<=now),default=None)
 
 
 def daily_boundary(now):

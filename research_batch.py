@@ -9,6 +9,7 @@ import price_basis
 import refresh
 import storage
 import update_policy
+import trade_clock
 
 TZ = update_policy.TZ
 
@@ -103,7 +104,7 @@ def series(db, symbol, timeframe, as_of, limit):
 def compact(f, rows):
     """Only eligible features; no raw price history or repeated source payloads."""
     value = {k: f.get(k) for k in ('status','count','close','last_bar_end','returns_pct',
-                                 'moving_averages','range','same_time_amount_ratio','same_time_baseline_samples')}
+                                 'moving_averages','range','same_time_amount_ratio','same_time_baseline_samples','window_issues','return_intervals')}
     if rows:
         value.update(close=rows[-1]['close'],last_bar_end=rows[-1]['bar_end'],
                      captured_at=rows[-1]['captured_at'],source=rows[-1]['source'])
@@ -137,6 +138,8 @@ def series_issues(db, key, scope, f, as_of, timeframe, rows=()):
     state = update_policy.state_at(db,key,as_of)
     if state.get('last_error'):
         out.append(issue('collection_error',scope,'error',error=state['last_error']))
+    if f.get('window_issues'):
+        out.append(issue('bar_window_gap',scope,metrics=list(f['window_issues'])))
     basis = f.get('price_basis', {})
     if basis.get('excluded_metrics'):
         out.append(issue('price_basis_'+basis['status'],scope))
@@ -278,8 +281,10 @@ def _snapshot(db, cfg, symbols, as_of, acquisitions, include_hotspots):
             rankings[kind]=r
             if r['status']!='available':
                 issues.append(issue('ranking_'+r['status'],kind,'error',error=r.get('last_error')))
-            elif (as_of-dt.datetime.fromisoformat(r['captured_at'])).total_seconds()>update_policy.seconds(cfg,'ranking',300):
-                issues.append(issue('ranking_age_requires_session_check',kind))
+            else:
+                r['evidence_role']=trade_clock.snapshot_role(r['captured_at'],as_of,update_policy.seconds(cfg,'ranking',300))
+                if r['evidence_role']=='historical':
+                    issues.append(issue('ranking_age_requires_session_check',kind))
     issues.append(issue('calendar_not_verified','market'))
     status='incomplete' if any(x['severity']=='error' for x in issues) else 'limited' if issues else 'ready'
     ends={s['periods']['15'].get('last_bar_end') for s in stocks}

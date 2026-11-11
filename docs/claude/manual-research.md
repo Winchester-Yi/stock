@@ -2,6 +2,8 @@
 
 用于用户手动启动的交互会话。遵循 `CLAUDE.md`，用 [内部框架](analysis-framework.md) 形成判断，用 [快速报告模式](report-format.md) 交付。不用 `stock_agent.py run` 代替本流程，不调用 `news --extract`／`enrich` 另起 Claude；不自动交易或调度。遵循 CLI 权限机制，仅在用户请求时修改代码或保存报告。
 
+多周期任务优先按[多周期契约](multi-horizon.md)使用 `forecast.py prepare`，以下research入口保留为15–60分钟/结构任务及共享证据入口。
+
 ## 1. 固定范围与时点
 
 - 读取上海当前时间、`config.json` 的指数、关注列表、股票名称与已确认板块映射。缺失映射不猜测。

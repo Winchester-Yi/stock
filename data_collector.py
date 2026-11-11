@@ -8,6 +8,7 @@ import urllib.error
 import time
 from zoneinfo import ZoneInfo
 import storage
+import trade_clock
 
 TZ = ZoneInfo('Asia/Shanghai')
 
@@ -20,11 +21,12 @@ def num(value, optional=False):
     return value
 
 def end_time(value, timeframe):
-    t = dt.datetime.fromisoformat(str(value)).replace(tzinfo=TZ)
+    t = dt.datetime.fromisoformat(str(value))
+    t = t.replace(tzinfo=TZ) if t.tzinfo is None else t.astimezone(TZ)
     if timeframe == 'daily': return t.replace(hour=15,minute=0,second=0,microsecond=0)
     # Eastmoney minute bars are end-labelled; reject timestamps outside expected session boundaries.
     minute = t.hour*60+t.minute
-    valid = {15: set(range(585,691,15)) | set(range(795,901,15)), 60: {630,690,840,900}}[int(timeframe)]
+    valid = {x.hour*60+x.minute for x in trade_clock.Calendar().ends(t.date(),timeframe)}
     if minute not in valid or t.second or t.weekday() >= 5: raise ValueError('unexpected bar end/session')
     return t
 

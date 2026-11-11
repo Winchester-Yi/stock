@@ -25,6 +25,7 @@ REASONS = {
     'series_unavailable_at_cutoff': '该截面序列未通过检查',
 }
 ISSUES = {
+    'bar_window_gap':'指标依赖窗口缺K线，受影响指标已停用',
     'insufficient_bars': '有效K线不足', 'duplicate_bar_end': '重复K线结束时间，不能任意选价',
     'bar_behind_boundary': '落后预期闭合边界', 'collection_error': '最近采集失败',
     'price_basis_unverified': '部分跨日指标停用：价格口径未核验',
@@ -265,6 +266,8 @@ class _Builder:
             if (number(value) and 0 <= value <= 1 and integer(count,1)
                     and breadth.get('breadth_status') == 'requires_quote_time_check'):
                 sentence = f'上涨占有效报价样本{value*100:.2f}%（{int(count)}只），采集{timestamp(breadth.get("breadth_as_of"))}；源报价时间未核验，只作异步背景，不证明扩散或同步共振'
+            elif number(value) and 0<=value<=1 and integer(count,1) and breadth.get('breadth_status')=='session_context':
+                sentence = f'最近收盘／午休背景上涨比例{value*100:.2f}%（{int(count)}只），采集{timestamp(breadth.get("breadth_as_of"))}；报价时点未核验，非实时广度、不证明同步共振'
             else:
                 sentence = '广度未知或仅历史参考（缺失、过期、失败或数值异常），不用于当前共振'
             self.add('G:' + scope, sentence)
@@ -342,6 +345,8 @@ class _Builder:
             for b in r['boards']:
                 if number(b.get('change_pct')) and integer(b.get('rank'),1):
                     items.append(f'{text(b.get("board_name"),60)} {pct(b["change_pct"])}（第{int(b["rank"])}名）')
+            if r.get('evidence_role')=='session_context':
+                name += '（最近收盘／午休背景，非实时报价）'
             self.add('K:' + kind, name + '榜采集' + timestamp(r.get('captured_at')) + '：' + ('；'.join(items) or '无合格排名')
                      + '；仅数据源板块横截面，不等于个股资金流；' + ('有两个可比快照，仍不足以证明持续轮动' if r.get('comparison_available') else '没有可比前序快照，不推断排名改善'))
         self.lines.append('- 日韩：未知；本管线没有已核验海外报价源，不补造点位。')

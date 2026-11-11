@@ -17,6 +17,7 @@ import storage
 import refresh
 import research_batch
 import agent_evidence
+import market_calendar
 
 ROOT=Path(__file__).resolve().parent
 TZ=ZoneInfo('Asia/Shanghai')
@@ -55,6 +56,8 @@ def invoke(context,config):
     return decision
 
 def run(db,cfg,symbol):
+    if market_calendar.session_state(dt.datetime.now(TZ),'CN')[0]!='trading':
+        raise RuntimeError('非交易时段不生成旧版盘中方向；使用 forecast.py 准备多周期研究')
     updates=refresh.refresh(db,cfg,symbol)
     errors=[r['key']+': '+str(r.get('last_error') or r.get('reason') or r['status']) for r in updates['results'] if r['status'] in ('failed','deferred','pending')]
     now=dt.datetime.now(TZ); ctx=analysis.build(db,symbol,cfg,now)
@@ -67,6 +70,8 @@ def run(db,cfg,symbol):
     if mismatches: errors.append('K线时间不一致或缺失: '+', '.join(mismatches))
     if missing_higher: errors.append('较大周期数据不足: '+', '.join(missing_higher))
     ctx['meta'].update({'collection_errors':errors,'data_quality':'insufficient' if errors or stale or ctx['stock']['15']['status']!='ok' else 'ok','freshness_note':'20分钟阈值；非交易时段不视为实时行情'})
+    if market_calendar.session_state(now,'CN')[0]!='trading':
+        raise RuntimeError('采集期间已离开交易时段，未调用模型')
     if ctx['meta']['data_quality']!='ok':
         raise RuntimeError('行情不完整或非实时，未生成决策: '+serialized(ctx['meta']))
     # Use the same qualified processing boundary as manual research. Keep the
@@ -89,16 +94,16 @@ def run(db,cfg,symbol):
     print(report)
 
 def evaluate(db):
+    # The legacy record has no actual issue-time baseline, explicit horizons or
+    # calendar/basis manifest. Never report row offsets as predictive accuracy.
     count=0
     for r in db.execute('SELECT * FROM analysis_runs WHERE evaluated_json IS NULL').fetchall():
-        context=json.loads(r['context_json']); base=context['stock']['15'].get('close'); end=context['stock']['15'].get('last_bar_end')
-        if not base or not end: continue
-        # Only bars captured after the prediction and actually available now, ordered by bar end.
-        rows=db.execute("SELECT b.bar_end,b.close,b.high,b.low FROM bars b WHERE b.symbol=? AND b.timeframe='15' AND b.adjust='' AND b.source='akshare' AND b.quality='valid' AND b.bar_end>? AND b.captured_at=(SELECT MAX(x.captured_at) FROM bars x WHERE x.symbol=b.symbol AND x.timeframe=b.timeframe AND x.bar_end=b.bar_end AND x.adjust=b.adjust AND x.source=b.source) ORDER BY b.bar_end LIMIT 4",(r['symbol'],end)).fetchall()
-        if len(rows)<4: continue
-        result={'returns_pct':{str(n):(rows[n-1]['close']/base-1)*100 for n in (1,2,4)},'max_favorable_pct':(max(x['high'] for x in rows)/base-1)*100,'max_adverse_pct':(min(x['low'] for x in rows)/base-1)*100,'note':'方向研究，非可交易收益；未考虑T+1与费用'}
-        db.execute('UPDATE analysis_runs SET evaluated_json=? WHERE id=?',(serialized(result),r['id'])); count+=1
-    db.commit(); print('evaluated:',count)
+        result={'status':'legacy_unscorable',
+                'reason':'missing issued-time/horizon/calendar/price-basis contract',
+                'next_step':'use forecast.py record/evaluate for versioned multi-horizon results'}
+        db.execute('UPDATE analysis_runs SET evaluated_json=? WHERE id=?',(serialized(result),r['id']))
+        count+=1
+    db.commit(); print('legacy records marked unscorable:',count)
 
 def main():
     parser=argparse.ArgumentParser(); sub=parser.add_subparsers(dest='command',required=True)

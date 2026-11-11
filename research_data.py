@@ -50,7 +50,7 @@ def main(argv=None):
     p = sub.add_parser('collect', help='fetch one stock, index, or board series')
     p.add_argument('--kind', required=True, choices=('stock', 'index', 'board'))
     p.add_argument('--symbol', required=True)
-    p.add_argument('--timeframe', required=True, choices=('15', '60', 'daily'))
+    p.add_argument('--timeframe', required=True, choices=('1', '5', '15', '60', 'daily'))
     p.add_argument('--board-type', choices=('industry', 'concept'))
     p.add_argument('--force', action='store_true', help='ignore update policy and retry cooldown')
     p = sub.add_parser('members', help='fetch one board constituent snapshot')
@@ -70,7 +70,7 @@ def main(argv=None):
     p.add_argument('--limit', type=int, choices=range(1,101), default=10, metavar='1..100')
     p = sub.add_parser('bars', help='return captured, completed raw bars')
     p.add_argument('--symbol', required=True, help='stock/index code or board:TYPE:NAME')
-    p.add_argument('--timeframe', required=True, choices=('15', '60', 'daily'))
+    p.add_argument('--timeframe', required=True, choices=('1', '5', '15', '60', 'daily'))
     p.add_argument('--limit', type=int, default=80, choices=range(1, 501), metavar='1..500')
     for name in ('context','bars','hotspots'):
         sub.choices[name].add_argument('--as-of', type=as_of_arg, help='available-at cutoff with timezone; no network')

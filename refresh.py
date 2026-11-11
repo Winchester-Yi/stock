@@ -146,7 +146,7 @@ def collect_bars(db,cfg,name,kind,timeframe,board_type=None,*,force=False,now=No
         return {'count':count,'latest_bar_end':bars[-1]['bar_end'] if bars else None,
                 'captured_at':bars[-1]['captured_at'] if bars else None,
                 'source':bars[-1]['source'] if bars else None}
-    return acquire(db,key,now or dt.datetime.now(TZ),update_policy.seconds(cfg,timeframe,{'15':900,'60':3600,'daily':86400}[timeframe]),
+    return acquire(db,key,now or dt.datetime.now(TZ),update_policy.seconds(cfg,timeframe,{'1':60,'5':300,'15':900,'60':3600,'daily':86400}[timeframe]),
                    fetch,timeframe,force,policy='daily' if timeframe=='daily' else 'completed_bar',
                    retry_seconds=update_policy.seconds(cfg,'retry_seconds',300,'update_policy'))
 

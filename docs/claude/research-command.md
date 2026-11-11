@@ -2,6 +2,8 @@
 
 此入口只采集、计算和输出精简证据，不启动模型、下单、保存人工报告或写 `analysis_runs`。最终方向仍由当前交互会话综合，按 [快速报告模式](report-format.md) 交付。
 
+四档时间尺度任务使用[forecast.py](multi-horizon.md)，不把本入口的15–60分钟摘要直接当作四档预测。collect/bars已支持1/5分钟，但旧research的默认依赖和输出契约保留。
+
 ## 一次取数
 
 ```bash

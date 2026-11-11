@@ -6,8 +6,10 @@ import events
 import lhb_collector
 import update_policy
 import price_basis
+import bar_quality
+import trade_clock
 
-def features(bars):
+def features(bars, calendar=None):
     if len(bars)<3: return {'status':'insufficient','count':len(bars)}
     close=[b['close'] for b in bars]; last=bars[-1]
     pivots=[]
@@ -31,7 +33,8 @@ def features(bars):
     prior=bars[-21:-1]; high=max(b['high'] for b in prior); low=min(b['low'] for b in prior)
     same=[b['amount'] for b in bars[:-1] if b['bar_end'][11:16]==last['bar_end'][11:16] and b['amount'] is not None and b['amount']>0]
     baseline=statistics.median(same) if same else None
-    return {'status':'ok','count':len(bars),'last_bar_end':last['bar_end'],'close':last['close'],'return_last_bar_pct':(close[-1]/close[-2]-1)*100,'trend_simple': 'up' if close[-1]>close[-min(6,len(close))] else 'down' if close[-1]<close[-min(6,len(close))] else 'flat','range':{'high':high,'low':low,'lookback_bars':len(prior),'breakout_candidate': 'up' if close[-1]>high else 'down' if close[-1]<low else None},'local_pivots':pivots[-8:],'pivot_method':'three-bar strict; containment excluded; not full Chan','same_time_amount_ratio':last['amount']/baseline if baseline and last['amount'] is not None else None,'same_time_baseline_samples':len(same),'returns_pct':returns,'moving_averages':moving,'range_amplitude_20_pct':amplitude}
+    result = {'status':'ok','count':len(bars),'last_bar_end':last['bar_end'],'close':last['close'],'return_last_bar_pct':(close[-1]/close[-2]-1)*100,'trend_simple': 'up' if close[-1]>close[-min(6,len(close))] else 'down' if close[-1]<close[-min(6,len(close))] else 'flat','range':{'high':high,'low':low,'lookback_bars':len(prior),'breakout_candidate': 'up' if close[-1]>high else 'down' if close[-1]<low else None},'local_pivots':pivots[-8:],'pivot_method':'three-bar strict; containment excluded; not full Chan','same_time_amount_ratio':last['amount']/baseline if baseline and last['amount'] is not None else None,'same_time_baseline_samples':len(same),'returns_pct':returns,'moving_averages':moving,'range_amplitude_20_pct':amplitude}
+    return bar_quality.apply(bars, result, calendar)
 
 def build(db, symbol, config, as_of):
     if as_of.tzinfo is None: raise ValueError('as_of must include timezone')
@@ -55,13 +58,14 @@ def build(db, symbol, config, as_of):
             limit=update_policy.seconds(config,'breadth',300)
             last=update_policy.state_at(db,f'breadth:{typ}:{board}',stamp)
             error=last.get('last_error')
-            usable=bool(m and changes and not error and dt.datetime.fromisoformat(m).date()==as_of.date() and age<=limit)
+            role=trade_clock.snapshot_role(m,as_of,limit) if m and not error else 'historical'
+            usable=bool(m and changes and not error and role=='live_candidate')
             catalog=db.execute('SELECT MAX(as_of) FROM sector_constituents WHERE board_id=? AND board_type=? AND as_of<=?',(board,typ,stamp)).fetchone()[0]
             membership_count=db.execute('SELECT count(*) FROM sector_constituents WHERE board_id=? AND board_type=? AND as_of=?',(board,typ,catalog)).fetchone()[0] if catalog else 0
             boards.append({'name':board,'type':typ,'features':f,'relative_return_pp':relative,
                            'breadth':sum(x>0 for x in changes)/len(changes) if changes else None,
                            'breadth_as_of':m,'valid_members':len(changes),'breadth_age_seconds':age,
-                           'breadth_status':'requires_quote_time_check' if usable else 'historical_or_missing',
+                           'breadth_status':'requires_quote_time_check' if usable else 'session_context' if role=='session_context' and changes else 'historical_or_missing',
                            'breadth_usable_for_current_session':usable,'breadth_last_error':error,
                            'membership_as_of':catalog,'membership_count':membership_count,
                            'breadth_notice':'采集时间不是行情源报价时间；不得假定与K线结束时间同步'})
