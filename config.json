@@ -18,7 +18,11 @@
     "sz399001",
     "sz399006"
   ],
-  "sector_mapping": {},
+  "sector_mapping": {
+    "002241": {
+      "industry": "消费电子"
+    }
+  },
   "news": {
     "active_event_days": 7,
     "queries": {
@@ -37,10 +41,24 @@
   "refresh_ttl_seconds": {
     "15": 900,
     "60": 3600,
-    "daily": 86400,
-    "members": 86400,
     "news": 1800,
-    "lhb": 86400,
-    "ranking": 300
+    "ranking": 300,
+    "constituents": 86400,
+    "breadth": 300
+  },
+  "stock_names": {
+    "000678": "襄阳轴承",
+    "002241": "歌尔股份",
+    "002242": "九阳股份",
+    "002929": "润建股份",
+    "600410": "华胜天成",
+    "601086": "国芳集团",
+    "603002": "宏昌电子"
+  },
+  "update_policy": {
+    "retry_seconds": 300,
+    "disclosure_recheck_seconds": 1800,
+    "lhb_check_after": "16:30",
+    "lhb_context_days": 30
   }
 }

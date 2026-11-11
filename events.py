@@ -41,14 +41,47 @@ def aggregate(db):
             db.execute('INSERT INTO event_articles VALUES (?,?,?)',(matched,item['event_key'],item['first_seen_at']))
     return {'new_events':new,'linked_articles':merged,'algorithm':VERSION}
 
-def as_of(db, at, since, limit=30):
-    groups=db.execute('''SELECT g.event_id,g.category,g.created_at,g.algorithm_version FROM event_groups g WHERE g.created_at<=? AND EXISTS (SELECT 1 FROM event_articles a JOIN news_events n ON n.event_key=a.article_key WHERE a.event_id=g.event_id AND a.linked_at<=? AND n.first_seen_at<=? AND n.first_seen_at>=? AND (n.published_at IS NULL OR n.published_at<=?)) ORDER BY g.created_at DESC LIMIT ?''',(at,at,at,since,at,limit)).fetchall()
+def as_of(db, at, since, limit=30, *, symbol=None, aliases=()):
+    """Select available, recently published reports before applying the cap.
+
+    Target-title matches take priority; unrelated watchlist-company reports are
+    excluded for stock research. Macro reports remain candidates, not proven
+    exposure. Missing publication dates are retained but explicitly flagged.
+    """
+    terms=list(dict.fromkeys(t for t in (symbol, *aliases) if isinstance(t,str) and t.strip()))
+    match='('+' OR '.join('instr(n.title, ?) > 0' for _ in terms)+')' if terms else '0'
+    eligibility='''a.linked_at<=? AND n.first_seen_at<=? AND n.first_seen_at>=?
+        AND (n.published_at IS NULL OR n.published_at BETWEEN ? AND ?)'''
+    times=(at,at,since,since,at)
+    scope=f" AND (g.category!='company_watchlist' OR {match})" if symbol else ''
+    groups=db.execute(f"""SELECT g.event_id,g.category,g.created_at,g.algorithm_version,
+        MAX({match}) AS target_match,
+        MAX(COALESCE(n.published_at,n.first_seen_at)) AS latest_report_at,
+        MAX(n.first_seen_at) AS latest_seen_at
+        FROM event_groups g JOIN event_articles a ON a.event_id=g.event_id
+        JOIN news_events n ON n.event_key=a.article_key
+        WHERE g.created_at<=? AND {eligibility} {scope}
+        GROUP BY g.event_id
+        ORDER BY target_match DESC,latest_report_at DESC,latest_seen_at DESC,g.event_id
+        LIMIT ?""",(*terms,at,*times,*(terms if symbol else ()),limit)).fetchall()
     out=[]
     for g in groups:
-        articles=[dict(r) for r in db.execute('''SELECT n.event_key,n.title,n.url,n.source,n.published_at,n.first_seen_at,n.status,n.query FROM event_articles a JOIN news_events n ON n.event_key=a.article_key WHERE a.event_id=? AND a.linked_at<=? AND n.first_seen_at<=? AND (n.published_at IS NULL OR n.published_at<=?) ORDER BY n.first_seen_at''',(g['event_id'],at,at,at))]
+        articles=[dict(r) for r in db.execute(f"""SELECT n.event_key,n.title,n.url,n.source,
+            n.published_at,n.first_seen_at,n.status,n.query FROM event_articles a
+            JOIN news_events n ON n.event_key=a.article_key
+            WHERE a.event_id=? AND {eligibility} ORDER BY n.first_seen_at,n.event_key""",
+            (g['event_id'],*times))]
         if articles:
-            assessment=db.execute('SELECT assessment_json,assessed_at FROM event_assessments WHERE event_id=? AND assessed_at<=? ORDER BY assessed_at DESC LIMIT 1',(g['event_id'],at)).fetchone()
-            out.append({**dict(g),'title':articles[0]['title'],'status':'unverified','assessment':json.loads(assessment[0]) if assessment else None,'assessment_at':assessment[1] if assessment else None,'sources':articles,'notice':'标题相似归组不代表事实核验或独立来源；模型提取的内容需要核查'})
+            row=db.execute('SELECT assessment_json,assessed_at FROM event_assessments WHERE event_id=? AND assessed_at<=? ORDER BY assessed_at DESC LIMIT 1',(g['event_id'],at)).fetchone()
+            assessment=json.loads(row[0]) if row else None
+            # Do not expose claims whose cited articles were filtered from this window.
+            keys={a['event_key'] for a in articles}
+            if assessment and any(not set(c['source_ids']) <= keys for c in assessment['claims']):
+                assessment=None
+            out.append({**dict(g),'title':articles[0]['title'],'status':'unverified',
+                        'publication_time_unknown':any(a['published_at'] is None for a in articles),
+                        'assessment':assessment,'assessment_at':row[1] if assessment is not None else None,
+                        'sources':articles,'notice':'标题匹配不证明业务暴露；发布时间缺失不代表新增事件；归组和模型提取未经核验'})
     return out
 
 

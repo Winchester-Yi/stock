@@ -14,6 +14,7 @@ import events
 import lhb_collector
 import news_collector
 import storage
+import refresh
 
 ROOT=Path(__file__).resolve().parent
 TZ=ZoneInfo('Asia/Shanghai')
@@ -46,17 +47,8 @@ def invoke(context,config):
     return decision
 
 def run(db,cfg,symbol):
-    errors=[]
-    targets=[(symbol,'stock','15',None),(symbol,'stock','60',None),(symbol,'stock','daily',None)]
-    targets += [(s,'index','15',None) for s in cfg.get('market_indices',[])]
-    for typ,names in cfg.get('sector_mapping',{}).get(symbol,{}).items():
-        for name in ([names] if isinstance(names,str) else names or []): targets.append((name,'board','15',typ))
-    for name,kind,tf,typ in targets:
-        try: data_collector.collect(db,name,kind,tf,typ)
-        except Exception as exc: errors.append(f'{kind} {name} {tf}: {exc}')
-        if kind=='board':
-            try: data_collector.collect_members(db,name,typ)
-            except Exception as exc: errors.append(f'constituents {name}: {exc}')
+    updates=refresh.refresh(db,cfg,symbol)
+    errors=[r['key']+': '+str(r.get('last_error') or r.get('reason') or r['status']) for r in updates['results'] if r['status'] in ('failed','deferred','pending')]
     now=dt.datetime.now(TZ); ctx=analysis.build(db,symbol,cfg,now)
     latest=ctx['stock']['15'].get('last_bar_end')
     stale=not latest or (now-dt.datetime.fromisoformat(latest)).total_seconds()>20*60
@@ -94,20 +86,22 @@ def evaluate(db):
 def main():
     parser=argparse.ArgumentParser(); sub=parser.add_subparsers(dest='command',required=True)
     for cmd in ('init','evaluate','aggregate','enrich'): sub.add_parser(cmd)
-    p=sub.add_parser('news'); p.add_argument('--extract',action='store_true',help='调用Claude批量提取事件主张和影响假设')
-    p=sub.add_parser('lhb'); p.add_argument('--date',required=True,help='交易日期 YYYYMMDD'); p.add_argument('--source',choices=('auto','akshare','web'),default='auto'); p.add_argument('--all',action='store_true',help='采集全部上榜股票及席位'); p.add_argument('--no-seats',action='store_true')
+    p=sub.add_parser('news'); p.add_argument('--force',action='store_true'); p.add_argument('--extract',action='store_true',help='调用Claude批量提取事件主张和影响假设')
+    p=sub.add_parser('lhb'); p.add_argument('--date',required=True,help='交易日期 YYYYMMDD'); p.add_argument('--source',choices=('auto','akshare','web'),default='auto'); p.add_argument('--all',action='store_true',help='采集全部上榜股票及席位'); p.add_argument('--no-seats',action='store_true'); p.add_argument('--force',action='store_true'); p.add_argument('--force-seats',action='store_true')
     for cmd in ('run','show'):
         p=sub.add_parser(cmd); p.add_argument('--symbol',required=cmd=='show')
     args=parser.parse_args(); cfg=config()
     with storage.connect(DB,backup=args.command=='init') as db:
         if args.command=='init': print('数据库已初始化:',DB)
         elif args.command=='news':
-            count,errors=news_collector.collect(db,cfg); grouped=events.aggregate(db); extracted=events.enrich(db,cfg) if args.extract else None; print(serialized({'new_articles':count,'aggregation':grouped,'extraction':extracted,'errors':errors})); return 1 if errors else 0
+            result=refresh.collect_news(db,cfg,force=args.force)
+            extracted=events.enrich(db,cfg) if args.extract and result['status'] not in ('failed','deferred') else None
+            print(serialized({'refresh':result,'extraction':extracted})); return 1 if result['status'] in ('failed','deferred') else 0
         elif args.command=='aggregate': print(serialized(events.aggregate(db)))
         elif args.command=='enrich': print(serialized(events.enrich(db,cfg)))
         elif args.command=='lhb':
             watchlist=None if args.all else cfg['watchlist']
-            result=lhb_collector.collect(db,args.date,watchlist,args.source,not args.no_seats); print(serialized(result)); return 1 if result['seat_errors'] else 0
+            result=lhb_collector.collect(db,args.date,watchlist,args.source,not args.no_seats,force=args.force,force_seats=args.force_seats,config=cfg); print(serialized(result)); return 1 if result['seat_errors'] else 0
         elif args.command=='evaluate': evaluate(db)
         elif args.command=='show':
             row=db.execute('SELECT * FROM analysis_runs WHERE symbol=? ORDER BY as_of DESC,id DESC LIMIT 1',(args.symbol,)).fetchone()

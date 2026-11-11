@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 TZ=ZoneInfo('Asia/Shanghai')
 
 def collect(db, config):
-    now=dt.datetime.now(TZ); errors=[]; added=0
+    errors=[]; added=0
     for category, query in config['news']['queries'].items():
         url='https://news.google.com/rss/search?'+urllib.parse.urlencode({'q':query,'hl':'zh-CN','gl':'CN','ceid':'CN:zh-Hans'})
         try:
@@ -23,6 +23,8 @@ def collect(db, config):
                 published=None
                 try: published=parsedate_to_datetime(item.findtext('pubDate')).astimezone(TZ).isoformat()
                 except (TypeError,ValueError,OverflowError): pass
+                # Availability starts only after this feed has arrived and parsed.
+                now=dt.datetime.now(TZ)
                 key=hashlib.sha256(link.encode()).hexdigest()
                 cursor=db.execute('INSERT OR IGNORE INTO news_events VALUES (?,?,?,?,?,?,?,?,?,?,?)',(key,title,category,published,now.isoformat(),now.isoformat(),'unverified',link,item.findtext('source'),None,query))
                 added+=cursor.rowcount

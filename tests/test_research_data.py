@@ -21,15 +21,21 @@ class ResearchDataTests(unittest.TestCase):
                 research_data.main(['--db', db, 'bars', '--symbol', '002241', '--timeframe', '15'])
             self.assertEqual(json.loads(output.getvalue())['count'], 0)
 
-    def test_collect_reports_success_and_propagates_provider_failure(self):
+    def test_collect_reuses_cache_and_force_reports_provider_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
             args = ['--db', str(Path(tmp) / 'test.db'), 'collect', '--kind', 'stock', '--symbol', '002241', '--timeframe', '15']
             with patch.object(research_data.data_collector, 'collect', return_value=7) as collect, contextlib.redirect_stdout(io.StringIO()) as output:
                 research_data.main(args)
                 self.assertEqual(json.loads(output.getvalue())['count'], 7)
                 collect.assert_called_once()
-            with patch.object(research_data.data_collector, 'collect', side_effect=OSError('unavailable')):
-                with self.assertRaises(OSError): research_data.main(args)
+            with patch.object(research_data.data_collector, 'collect', side_effect=OSError('unavailable')) as collect, contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(research_data.main(args), 0)
+                self.assertEqual(json.loads(output.getvalue())['status'], 'cached')
+                collect.assert_not_called()
+            with patch.object(research_data.data_collector, 'collect', side_effect=OSError('unavailable')), contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(research_data.main(args + ['--force']), 1)
+                self.assertEqual(json.loads(output.getvalue())['status'], 'failed')
+                self.assertIn('unavailable', json.loads(output.getvalue())['last_error'])
 
     def test_rejects_unsupported_daily_board(self):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):

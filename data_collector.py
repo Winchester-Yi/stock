@@ -84,14 +84,27 @@ def collect(db, symbol, kind, timeframe, board_type=None):
     storage.save_bars(db,rows)
     return len(rows)
 
-def collect_members(db, board, board_type):
+def collect_members(db, board, board_type, *, membership_ttl_seconds=86400, force_membership=False):
+    """Provider bundles names and quotes; persist their different lifecycles separately."""
     import akshare as ak
     fn=ak.stock_board_industry_cons_em if board_type=='industry' else ak.stock_board_concept_cons_em
-    frame=fn(symbol=board); now=dt.datetime.now(TZ).isoformat(); rows=[]
+    frame=fn(symbol=board); values={}
     for r in frame.to_dict('records'):
         code=str(r.get('代码','')).zfill(6)
-        if len(code)!=6 or not code.isdigit(): continue
-        rows.append((now,board,board_type,code,num(r.get('涨跌幅'),True)))
-    if not rows: raise ValueError('empty sector constituents')
-    db.executemany('INSERT OR IGNORE INTO sector_members VALUES (?,?,?,?,?)',rows); db.commit()
-    return len(rows)
+        if len(code)!=6 or not code.isascii() or not code.isdigit(): continue
+        value=(str(r.get('名称') or '').strip() or None,num(r.get('涨跌幅'),True))
+        if code in values and values[code]!=value: raise ValueError('conflicting constituent rows: '+code)
+        values[code]=value
+    if not values: raise ValueError('empty sector constituents')
+    now=dt.datetime.now(TZ); stamp=now.isoformat()
+    last=db.execute('SELECT MAX(as_of) FROM sector_constituents WHERE board_id=? AND board_type=?',(board,board_type)).fetchone()[0]
+    previous={r['symbol']:r['name'] for r in db.execute('SELECT symbol,name FROM sector_constituents WHERE board_id=? AND board_type=? AND as_of=?',(board,board_type,last))} if last else {}
+    changed=previous!={code:v[0] for code,v in values.items()}
+    due=force_membership or not last or changed or dt.datetime.fromisoformat(last)>now or (now-dt.datetime.fromisoformat(last)).total_seconds()>=membership_ttl_seconds
+    with db:
+        if due:
+            db.executemany('INSERT OR IGNORE INTO sector_constituents VALUES (?,?,?,?,?)',
+                           [(stamp,board,board_type,code,v[0]) for code,v in values.items()])
+        db.executemany('INSERT OR IGNORE INTO sector_members VALUES (?,?,?,?,?)',
+                       [(stamp,board,board_type,code,v[1]) for code,v in values.items()])
+    return len(values)

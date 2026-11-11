@@ -28,9 +28,11 @@ def main(argv=None):
     p.add_argument('--symbol', required=True)
     p.add_argument('--timeframe', required=True, choices=('15', '60', 'daily'))
     p.add_argument('--board-type', choices=('industry', 'concept'))
+    p.add_argument('--force', action='store_true', help='ignore update policy and retry cooldown')
     p = sub.add_parser('members', help='fetch one board constituent snapshot')
     p.add_argument('--symbol', required=True)
     p.add_argument('--board-type', required=True, choices=('industry', 'concept'))
+    p.add_argument('--force', action='store_true', help='refresh membership and quote snapshots')
     p = sub.add_parser('context', help='calculate existing deterministic research indicators')
     p.add_argument('--symbol', type=symbol_arg, required=True)
     p = sub.add_parser('refresh', help='refresh only due stock, market, and configured board data')
@@ -60,11 +62,11 @@ def main(argv=None):
             refresh.setup(db)
             value = refresh.rank_output(db,args.type,args.limit)
         elif args.command == 'collect':
-            count = data_collector.collect(db, args.symbol, args.kind, args.timeframe, args.board_type)
-            value = {'kind': args.kind, 'symbol': args.symbol, 'timeframe': args.timeframe, 'count': count}
+            result = refresh.collect_bars(db,cfg,args.symbol,args.kind,args.timeframe,args.board_type,force=args.force)
+            value = {'kind':args.kind,'symbol':args.symbol,'timeframe':args.timeframe,**result}
         elif args.command == 'members':
-            count = data_collector.collect_members(db, args.symbol, args.board_type)
-            value = {'symbol': args.symbol, 'board_type': args.board_type, 'count': count}
+            results = refresh.collect_board_members(db,cfg,args.symbol,args.board_type,force=args.force)
+            value = {'symbol':args.symbol,'board_type':args.board_type,'count':results[0].get('count'),'results':results}
         elif args.command == 'context':
             value = analysis.build(db, args.symbol, cfg, dt.datetime.now(TZ))
         else:
@@ -72,7 +74,8 @@ def main(argv=None):
             rows = storage.bars_at(db, args.symbol, args.timeframe, now, args.limit)
             value = {'as_of': now, 'symbol': args.symbol, 'timeframe': args.timeframe, 'count': len(rows), 'bars': rows}
     print(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False))
-    if args.command == 'refresh' and any(r['status']=='failed' for r in value['results']): return 1
+    updates=value.get('results',[value])
+    if any(r.get('status') in ('failed','deferred') for r in updates): return 1
     return 0
 
 if __name__ == '__main__':

@@ -11,6 +11,7 @@
 | 手动 Claude 主导个股研究（主要模式） | 用户在仓库根目录手动运行 `claude`，交互中提出股票与分析任务 | [手动研究流程](docs/claude/manual-research.md) 和 [分析框架](docs/claude/analysis-framework.md) |
 | Python 编排个股研究（保留模式） | `python3 stock_agent.py run --symbol 002241`；不指定代码则遍历关注列表 | [个股研究与决策](docs/claude/stock-research.md) |
 | 新闻采集、归组和事件提取 | `python3 stock_agent.py news`；需要 Claude 提取时用 `news --extract` 或 `enrich` | [新闻与事件](docs/claude/news-events.md) |
+| 数据更新频率、缓存和披露节奏 | `research_data.py refresh`；单项 collect / members、news 和 lhb 共用策略 | [数据更新生命周期](docs/claude/update-policy.md) |
 | 龙虎榜采集与解读 | `python3 stock_agent.py lhb --date YYYYMMDD` | [数据、龙虎榜与验证](docs/claude/data-and-validation.md) |
 | 旧版大盘、日韩和关注列表报告 | `market_monitor.py fetch`、`context --json`、`report` | [原有市场增量分析规范](docs/claude/market-monitor.md) |
 | 核查运行结果、回填预测表现或定位数据问题 | `stock_agent.py show --symbol 002241`、`evaluate` | [数据、龙虎榜与验证](docs/claude/data-and-validation.md) |
@@ -28,7 +29,7 @@
 1. **数据质量与时间**：检查 `meta.as_of`、`data_quality`、`collection_errors`、各周期 `last_bar_end` 和采集时间。自动 `run` 在采集失败、数据不足或不满足实时性时直接失败；手动模式必须逐项核对采集结果和时间，失败或过期时明确标注，不将旧值当本轮成功。
 2. **市场与板块**：先看三大指数，再看已配置板块的相对收益和成分股快照广度；板块映射为空、数据缺失或时点不一致时明确未知，不从少量标的推断全市场。未提供的日韩数据不能推测。
 3. **个股与结构**：结合日线、60 分钟、15 分钟的趋势、区间、最近转折及同时间成交额基线，比较上一轮判断；按事实、解释、反证分开表述。简化分型不是严格缠论买卖点，波浪和 Wyckoff 仅作为待验证的竞争性解释。
-4. **新闻与龙虎榜**：只使用截至 `as_of` 已采集的信息；报道、聚合结果和模型提取均不等于事实核验。龙虎榜是盘后公开席位信息，不代表全市场资金或已识别的游资身份；AKShare 和网页接口都来自东方财富。
+4. **新闻与龙虎榜**：只使用截至 `as_of` 已采集的信息；报道、聚合结果和模型提取均不等于事实核验。龙虎榜按日共享列表和独立席位状态复用，作为盘后历史背景；核对交易日期、自然日年龄、覆盖与版本状态，不代表全市场资金或已识别的游资身份；AKShare 和网页接口都来自东方财富。
 5. **情景、限制与输出**：比较上涨、震荡、下跌或无法判断的路径，给出证据、触发与失效条件。方向与交易动作分开；不得编造概率、报价、持仓或可成交性。当前实现没有持仓、涨跌停和流动性信息；自动模式程序只接受 `WAIT`，手动模式也不得声称可以执行交易，条件未知时应等待。根据运行模式遵守对应输出契约，不自动下单。
 
 ## 所有流程的硬约束
