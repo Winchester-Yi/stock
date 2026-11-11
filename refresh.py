@@ -51,7 +51,7 @@ def cache_valid(success, now, ttl, timeframe=None):
 def acquire(db,key,now,ttl,fn,timeframe=None,force=False):
     row=db.execute('SELECT * FROM refresh_status WHERE key=?',(key,)).fetchone()
     previous=dict(row) if row else {}
-    if not force and cache_valid(previous.get('last_success'),now,ttl,timeframe):
+    if not force and not previous.get('last_error') and cache_valid(previous.get('last_success'),now,ttl,timeframe):
         # A recent failure is not erased just because older data remains cached.
         return {'key':key,'status':'cached','last_success':previous['last_success'],
                 'last_attempt':previous.get('last_attempt'),'last_error':previous.get('last_error'),
@@ -69,6 +69,7 @@ def acquire(db,key,now,ttl,fn,timeframe=None,force=False):
         db.commit()
         return {'key':key,'status':'updated','last_success':completed,'last_attempt':completed,'count':count,'metadata':metadata}
     except Exception as exc:
+        db.rollback()  # Do not commit a collector's unfinished transaction.
         completed=dt.datetime.now(TZ).isoformat(); error=f'{type(exc).__name__}: {exc}'
         db.execute('''INSERT INTO refresh_status(key,last_attempt,last_error) VALUES (?,?,?)
           ON CONFLICT(key) DO UPDATE SET last_attempt=excluded.last_attempt,last_error=excluded.last_error''',
@@ -110,9 +111,10 @@ def rank_output(db,board_type,limit):
             'previous_at':stamps[1] if len(stamps)>1 else None,
             'scope':'数据源板块榜单；覆盖和实时性未核实，不等于全市场个股','boards':boards}
 
-def refresh(db,cfg,symbol,now=None,include_news=False,lhb_date=None,include_hotspots=False,force=False):
-    setup(db); now=now or dt.datetime.now(TZ); results=[]
-    state,verified=market_calendar.session_state(now,'CN')
+def refresh(db,cfg,symbol,now=None,include_news=False,lhb_date=None,include_hotspots=False,force=False,clock=None):
+    setup(db)
+    if clock is None: clock=lambda: now or dt.datetime.now(TZ)
+    results=[]
     ttls=cfg.get('refresh_ttl_seconds',{})
     def ttl(name,default):
         value=ttls.get(name,default)
@@ -129,30 +131,32 @@ def refresh(db,cfg,symbol,now=None,include_news=False,lhb_date=None,include_hots
             return {'count':count,'latest_bar_end':bars[-1]['bar_end'] if bars else None,
                     'captured_at':bars[-1]['captured_at'] if bars else None,
                     'source':bars[-1]['source'] if bars else None}
-        results.append(acquire(db,key,now,age,fetch,tf,force))
+        results.append(acquire(db,key,clock(),age,fetch,tf,force))
     for tf in ('15','60','daily'): collect('stock',symbol,tf)
     for index in cfg.get('market_indices',[]): collect('index',index,'15')
     for typ,names in cfg.get('sector_mapping',{}).get(symbol,{}).items():
         if typ not in ('industry','concept'): continue
         for name in ([names] if isinstance(names,str) else names or []):
             collect('board',name,'15',typ)
-            results.append(acquire(db,f'members:{typ}:{name}',now,ttl('members',86400),
+            results.append(acquire(db,f'members:{typ}:{name}',clock(),ttl('members',86400),
                 lambda name=name,typ=typ:data_collector.collect_members(db,name,typ),force=force))
     if include_news:
         def news():
             n,errors=news_collector.collect(db,cfg); grouped=events.aggregate(db)
             if errors: raise RuntimeError('部分新闻源失败: '+'; '.join(errors))
             return {'count':n,'aggregation':grouped}
-        results.append(acquire(db,'news',now,ttl('news',1800),news,force=force))
+        results.append(acquire(db,'news',clock(),ttl('news',1800),news,force=force))
     if lhb_date:
         def lhb():
             result=lhb_collector.collect(db,lhb_date,[symbol])
             if result['seat_errors']: raise RuntimeError('席位采集部分失败: '+'; '.join(result['seat_errors']))
             return {'count':result['watchlist_records'],**result}
-        results.append(acquire(db,'lhb:'+lhb_date+':'+symbol,now,ttl('lhb',86400),lhb,force=force))
+        results.append(acquire(db,'lhb:'+lhb_date+':'+symbol,clock(),ttl('lhb',86400),lhb,force=force))
     if include_hotspots:
         for typ in ('industry','concept'):
-            results.append(acquire(db,'ranking:'+typ,now,ttl('ranking',300),lambda typ=typ:board_ranking(db,typ),force=force))
-    return {'symbol':symbol,'as_of':dt.datetime.now(TZ).isoformat(),'session':state,
+            results.append(acquire(db,'ranking:'+typ,clock(),ttl('ranking',300),lambda typ=typ:board_ranking(db,typ),force=force))
+    completed=clock()
+    state,verified=market_calendar.session_state(completed,'CN')
+    return {'symbol':symbol,'as_of':completed.isoformat(),'session':state,
             'calendar_verified':verified,'notice':'工作日不保证开市；缓存命中不等于行情实时；未自动调度',
             'results':results}

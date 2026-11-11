@@ -33,6 +33,35 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(out['status'],'failed');self.assertEqual(out['last_success'],old)
         row=self.db.execute('SELECT * FROM refresh_status WHERE key=?',('x',)).fetchone()
         self.assertEqual(row['last_success'],old);self.assertIn('offline',row['last_error'])
+    def test_failure_does_not_promote_cache_and_retries_next_time(self):
+        stamp=at(10,0).isoformat()
+        self.db.execute('INSERT INTO refresh_status VALUES (?,?,?,?,?,?)',('x',stamp,stamp,None,4,'{}'));self.db.commit()
+        def fail():
+            self.db.execute("INSERT INTO board_rank_snapshots VALUES (?,?,?,?,?,?)",(stamp,'industry','a','A',1,None))
+            raise OSError('partial')
+        first=refresh.acquire(self.db,'x',at(10,1),900,fail,force=True)
+        self.assertEqual(first['status'],'failed')
+        self.assertEqual(self.db.execute('SELECT count(*) FROM board_rank_snapshots').fetchone()[0],0)
+        second=refresh.acquire(self.db,'x',at(10,2),900,lambda:5)
+        self.assertEqual(second['status'],'updated')
+        self.assertEqual(second['count'],5)
+        self.assertIsNone(self.db.execute('SELECT last_error FROM refresh_status WHERE key=?',('x',)).fetchone()[0])
+    def test_each_cache_check_uses_time_at_that_step(self):
+        times=iter((at(10,29),at(10,31),at(10,32),at(10,32)))
+        def clock(): return next(times,at(10,32))
+        cfg={'market_indices':[],'sector_mapping':{},'news':{'active_event_days':7}}
+        stamp=at(10,16).isoformat()
+        for tf in ('15','60','daily'):
+            self.db.execute('INSERT INTO refresh_status VALUES (?,?,?,?,?,?)',(f'bars:stock:-:002241:{tf}',stamp,stamp,None,1,'{}'))
+        self.db.commit()
+        seen=[]
+        def collect(db,name,kind,tf,typ=None): seen.append(tf); return 1
+        # The clock crosses the 60-minute close between requests.
+        with patch.object(refresh.data_collector,'collect',side_effect=collect):
+            result=refresh.refresh(self.db,cfg,'002241',clock=clock)
+        self.assertEqual(result['results'][0]['status'],'cached')
+        self.assertIn('60',seen)
+        self.assertEqual(result['as_of'],at(10,32).isoformat())
     def test_rank_is_board_level_and_compares_same_kind(self):
         t1=at(9,35).isoformat(); t2=at(9,40).isoformat()
         self.db.executemany('INSERT INTO board_rank_snapshots VALUES (?,?,?,?,?,?)',[(t1,'industry','a','A',2,None),(t1,'industry','b','B',1,None),(t2,'industry','a','A',1,None),(t2,'industry','b','B',3,None),(t2,'concept','c','C',50,None)])
