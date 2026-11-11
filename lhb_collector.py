@@ -175,12 +175,17 @@ def context(db,symbol,as_of,lookback_days=30):
     latest=max((r['trade_date'] for r in records),default=None)
     issues=[]
     if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='refresh_status'").fetchone():
-        for row in db.execute("SELECT key,last_attempt,last_error FROM refresh_status WHERE last_error IS NOT NULL AND last_attempt<=?",(stamp,)):
-            parts=row['key'].split(':')
-            if len(parts)>=3 and parts[0]=='lhb' and (parts[1]=='list' or (parts[1]=='seats' and parts[-1]==symbol)):
+        keys={r[0] for r in db.execute("SELECT key FROM refresh_status WHERE key LIKE 'lhb:%'")}
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='refresh_attempts'").fetchone():
+            keys.update(r[0] for r in db.execute("SELECT DISTINCT key FROM refresh_attempts WHERE key LIKE 'lhb:%'"))
+        for key in sorted(keys):
+            row=update_policy.state_at(db,key,as_of)
+            if not row.get('last_error'): continue
+            parts=key.split(':')
+            if len(parts)>=3 and (parts[1]=='list' or (parts[1]=='seats' and parts[-1]==symbol)):
                 try: relevant=since<=date_arg(parts[2]).isoformat()<=as_of.date().isoformat()
                 except ValueError: relevant=False
-                if relevant: issues.append(dict(row))
+                if relevant: issues.append({'key':key,'last_attempt':row['last_attempt'],'last_error':row['last_error']})
     status='collection_error' if issues else 'available_background' if records else 'not_in_collected_list' if coverage else 'not_collected'
     return {'records':records,'seats':seats_out,'coverage':coverage,'role':'post_close_background','status':status,
             'refresh_issues':issues,'legacy_records_present':bool(legacy),

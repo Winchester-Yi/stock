@@ -1,0 +1,1026 @@
+{
+  "meta": {
+    "as_of": "2026-11-11T13:50:07.834089+08:00",
+    "information_cutoff": "2026-11-11T13:50:07.834089+08:00",
+    "session": "trading",
+    "schema_version": "research-snapshot-v1",
+    "aligned_15_bar_end": "2026-11-11T13:45:00+08:00",
+    "calendar_verified": false,
+    "refresh_history_notice": "new attempts archived; overwritten pre-upgrade errors cannot be reconstructed",
+    "notice": "single SQLite read view; per-series bar ends may differ; not a final direction",
+    "generated_at": "2026-11-11T13:55:37.320531+08:00",
+    "mode": "historical",
+    "acquisition_seconds": 0.0,
+    "total_seconds": 0.054
+  },
+  "status": "limited",
+  "acquisition": {
+    "count": 0,
+    "updated": 0,
+    "cached": 0
+  },
+  "issues": [
+    {
+      "code": "breadth_quote_time_unverified",
+      "scope": "board:industry:消费电子",
+      "severity": "warning"
+    },
+    {
+      "code": "price_basis_unverified",
+      "scope": "002241:15",
+      "severity": "warning"
+    },
+    {
+      "code": "price_basis_unverified",
+      "scope": "002241:60",
+      "severity": "warning"
+    },
+    {
+      "code": "price_basis_unverified",
+      "scope": "002241:daily",
+      "severity": "warning"
+    },
+    {
+      "code": "price_basis_unverified",
+      "scope": "002242:15",
+      "severity": "warning"
+    },
+    {
+      "code": "price_basis_unverified",
+      "scope": "002242:60",
+      "severity": "warning"
+    },
+    {
+      "code": "price_basis_unverified",
+      "scope": "002242:daily",
+      "severity": "warning"
+    },
+    {
+      "code": "sector_mapping_missing",
+      "scope": "002242",
+      "severity": "warning"
+    },
+    {
+      "code": "calendar_not_verified",
+      "scope": "market",
+      "severity": "warning"
+    }
+  ],
+  "market": [
+    {
+      "symbol": "sh000001",
+      "status": "ok",
+      "count": 160,
+      "close": 3684.78,
+      "last_bar_end": "2026-11-11T13:45:00+08:00",
+      "returns_pct": {
+        "1": 0.4328272779307252,
+        "4": 0.8271880258855502,
+        "20": 0.5172103376597903
+      },
+      "moving_averages": {
+        "5": {
+          "value": 3666.92,
+          "distance_pct": 0.4870572578621779,
+          "slope_pct": 0.16361962670687902
+        },
+        "20": {
+          "value": 3664.771,
+          "distance_pct": 0.5459822728350661,
+          "slope_pct": 0.025874612392584595
+        }
+      },
+      "range": {
+        "high": 3675.01,
+        "low": 3650.31,
+        "lookback_bars": 20,
+        "breakout_candidate": "up"
+      },
+      "same_time_amount_ratio": 1.3286250519787812,
+      "same_time_baseline_samples": 9,
+      "captured_at": "2026-11-11T13:49:37.682912+08:00",
+      "source": "eastmoney-web",
+      "pivots": [
+        {
+          "type": "low",
+          "price": 3650.31,
+          "at": "2026-11-11T10:30:00+08:00",
+          "confirmed_at": "2026-11-11T10:45:00+08:00"
+        },
+        {
+          "type": "high",
+          "price": 3660.53,
+          "at": "2026-11-11T10:45:00+08:00",
+          "confirmed_at": "2026-11-11T11:00:00+08:00"
+        }
+      ],
+      "descriptive_label": "strong_observation",
+      "day_return": {
+        "value_pct": 0.5748255871081964,
+        "baseline": 3663.72,
+        "baseline_at": "2026-11-10T15:00:00+08:00"
+      },
+      "reference_only": false
+    },
+    {
+      "symbol": "sz399001",
+      "status": "ok",
+      "count": 160,
+      "close": 11393.23,
+      "last_bar_end": "2026-11-11T13:45:00+08:00",
+      "returns_pct": {
+        "1": 0.5940340545384615,
+        "4": 1.412067552086893,
+        "20": 1.324403187034151
+      },
+      "moving_averages": {
+        "5": {
+          "value": 11313.024,
+          "distance_pct": 0.708970475091375,
+          "slope_pct": 0.3290018043750953
+        },
+        "20": {
+          "value": 11259.6595,
+          "distance_pct": 1.1862747714528998,
+          "slope_pct": 0.06617364663406011
+        }
+      },
+      "range": {
+        "high": 11362.44,
+        "low": 11170.35,
+        "lookback_bars": 20,
+        "breakout_candidate": "up"
+      },
+      "same_time_amount_ratio": 1.5494155599679311,
+      "same_time_baseline_samples": 9,
+      "captured_at": "2026-11-11T13:49:38.006772+08:00",
+      "source": "eastmoney-web",
+      "pivots": [
+        {
+          "type": "high",
+          "price": 11239.51,
+          "at": "2026-11-11T10:45:00+08:00",
+          "confirmed_at": "2026-11-11T11:00:00+08:00"
+        },
+        {
+          "type": "low",
+          "price": 11196.06,
+          "at": "2026-11-11T11:00:00+08:00",
+          "confirmed_at": "2026-11-11T11:15:00+08:00"
+        }
+      ],
+      "descriptive_label": "strong_observation",
+      "day_return": {
+        "value_pct": 1.3493702820076114,
+        "baseline": 11241.54,
+        "baseline_at": "2026-11-10T15:00:00+08:00"
+      },
+      "reference_only": false
+    },
+    {
+      "symbol": "sz399006",
+      "status": "ok",
+      "count": 160,
+      "close": 2567.7,
+      "last_bar_end": "2026-11-11T13:45:00+08:00",
+      "returns_pct": {
+        "1": 0.888773633834683,
+        "4": 2.218984378732136,
+        "20": 2.733888940012874
+      },
+      "moving_averages": {
+        "5": {
+          "value": 2539.908,
+          "distance_pct": 1.094212861253241,
+          "slope_pct": 0.5274319218612433
+        },
+        "20": {
+          "value": 2511.045,
+          "distance_pct": 2.2562319671690423,
+          "slope_pct": 0.13624426425207226
+        }
+      },
+      "range": {
+        "high": 2558.46,
+        "low": 2487.56,
+        "lookback_bars": 20,
+        "breakout_candidate": "up"
+      },
+      "same_time_amount_ratio": 1.634641003336794,
+      "same_time_baseline_samples": 9,
+      "captured_at": "2026-11-11T13:49:38.440772+08:00",
+      "source": "eastmoney-web",
+      "pivots": [
+        {
+          "type": "high",
+          "price": 2514.29,
+          "at": "2026-11-11T10:45:00+08:00",
+          "confirmed_at": "2026-11-11T11:00:00+08:00"
+        },
+        {
+          "type": "low",
+          "price": 2496.95,
+          "at": "2026-11-11T11:00:00+08:00",
+          "confirmed_at": "2026-11-11T11:15:00+08:00"
+        }
+      ],
+      "descriptive_label": "strong_observation",
+      "day_return": {
+        "value_pct": 2.9385824246311643,
+        "baseline": 2494.4,
+        "baseline_at": "2026-11-10T15:00:00+08:00"
+      },
+      "reference_only": false
+    }
+  ],
+  "boards": [
+    {
+      "symbol": "board:industry:消费电子",
+      "type": "industry",
+      "name": "消费电子",
+      "status": "ok",
+      "count": 160,
+      "close": 1881.69,
+      "last_bar_end": "2026-11-11T13:45:00+08:00",
+      "returns_pct": {
+        "1": 0.612758858536111,
+        "4": 1.4109328432614143,
+        "20": 3.694947758233025
+      },
+      "moving_averages": {
+        "5": {
+          "value": 1867.654,
+          "distance_pct": 0.7515310651758922,
+          "slope_pct": 0.3013895497523622
+        },
+        "20": {
+          "value": 1853.926,
+          "distance_pct": 1.4975786520066148,
+          "slope_pct": 0.18116005659867263
+        }
+      },
+      "range": {
+        "high": 1873.28,
+        "low": 1810.13,
+        "lookback_bars": 20,
+        "breakout_candidate": "up"
+      },
+      "same_time_amount_ratio": 1.3085215740897316,
+      "same_time_baseline_samples": 9,
+      "captured_at": "2026-11-11T13:49:44.588911+08:00",
+      "source": "akshare",
+      "pivots": [
+        {
+          "type": "high",
+          "price": 1865.69,
+          "at": "2026-11-11T10:00:00+08:00",
+          "confirmed_at": "2026-11-11T10:15:00+08:00"
+        },
+        {
+          "type": "low",
+          "price": 1844.23,
+          "at": "2026-11-11T10:30:00+08:00",
+          "confirmed_at": "2026-11-11T10:45:00+08:00"
+        }
+      ],
+      "descriptive_label": "strong_observation",
+      "day_return": {
+        "value_pct": 1.741570603629139,
+        "baseline": 1849.48,
+        "baseline_at": "2026-11-10T15:00:00+08:00"
+      },
+      "breadth": {
+        "breadth": 0.6868686868686869,
+        "breadth_as_of": "2026-11-11T13:49:44.817860+08:00",
+        "valid_members": 99,
+        "breadth_age_seconds": 23.016229,
+        "breadth_status": "requires_quote_time_check",
+        "breadth_last_error": null
+      },
+      "quote_time_verified": false,
+      "reference_only": false
+    }
+  ],
+  "stocks": [
+    {
+      "symbol": "002241",
+      "name": "歌尔股份",
+      "as_of": "2026-11-11T13:50:07.834089+08:00",
+      "periods": {
+        "15": {
+          "status": "ok",
+          "count": 160,
+          "close": 25.23,
+          "last_bar_end": "2026-11-11T13:45:00+08:00",
+          "returns_pct": {
+            "1": 0.35799522673030104,
+            "4": 0.0,
+            "20": null
+          },
+          "moving_averages": {
+            "5": {
+              "value": 25.21,
+              "distance_pct": 0.07933359777865245,
+              "slope_pct": -0.09510977252913388
+            },
+            "20": {
+              "value": null,
+              "distance_pct": null,
+              "slope_pct": null
+            }
+          },
+          "range": {
+            "high": null,
+            "low": null,
+            "lookback_bars": 20,
+            "breakout_candidate": null
+          },
+          "same_time_amount_ratio": null,
+          "same_time_baseline_samples": 9,
+          "captured_at": "2026-11-11T13:49:36.574877+08:00",
+          "source": "akshare",
+          "pivots": [
+            {
+              "type": "high",
+              "price": 25.44,
+              "at": "2026-11-11T10:00:00+08:00",
+              "confirmed_at": "2026-11-11T10:15:00+08:00"
+            },
+            {
+              "type": "low",
+              "price": 25.02,
+              "at": "2026-11-11T10:30:00+08:00",
+              "confirmed_at": "2026-11-11T10:45:00+08:00"
+            }
+          ],
+          "price_basis": {
+            "status": "unverified",
+            "ex_dates": [],
+            "excluded_metrics": {
+              "returns_pct.20": "unverified",
+              "moving_averages.20.value": "unverified",
+              "moving_averages.20.slope": "unverified",
+              "range": "unverified",
+              "range_amplitude_20_pct": "unverified",
+              "local_pivots": "unverified",
+              "same_time_amount_ratio": "unverified"
+            },
+            "notice": "operator coverage only; no automatic corporate-action verification"
+          },
+          "descriptive_label": "mixed",
+          "collection_state": {
+            "coverage": "recorded",
+            "last_attempt": "2026-11-11T13:49:36.595360+08:00",
+            "last_error": null
+          },
+          "reference_only": false
+        },
+        "60": {
+          "status": "ok",
+          "count": 80,
+          "close": 25.28,
+          "last_bar_end": "2026-11-11T11:30:00+08:00",
+          "returns_pct": {
+            "1": 0.6770211071286392,
+            "4": null,
+            "20": null
+          },
+          "moving_averages": {
+            "5": {
+              "value": null,
+              "distance_pct": null,
+              "slope_pct": null
+            },
+            "20": {
+              "value": null,
+              "distance_pct": null,
+              "slope_pct": null
+            }
+          },
+          "range": {
+            "high": null,
+            "low": null,
+            "lookback_bars": 20,
+            "breakout_candidate": null
+          },
+          "same_time_amount_ratio": null,
+          "same_time_baseline_samples": 19,
+          "captured_at": "2026-11-11T13:49:36.871403+08:00",
+          "source": "akshare",
+          "pivots": [
+            {
+              "type": "low",
+              "price": 24.55,
+              "at": "2026-11-05T14:00:00+08:00",
+              "confirmed_at": "2026-11-05T15:00:00+08:00"
+            },
+            {
+              "type": "high",
+              "price": 25.06,
+              "at": "2026-11-06T14:00:00+08:00",
+              "confirmed_at": "2026-11-06T15:00:00+08:00"
+            }
+          ],
+          "price_basis": {
+            "status": "unverified",
+            "ex_dates": [],
+            "excluded_metrics": {
+              "returns_pct.4": "unverified",
+              "returns_pct.20": "unverified",
+              "trend_simple": "unverified",
+              "moving_averages.5.value": "unverified",
+              "moving_averages.5.slope": "unverified",
+              "moving_averages.20.value": "unverified",
+              "moving_averages.20.slope": "unverified",
+              "range": "unverified",
+              "range_amplitude_20_pct": "unverified",
+              "local_pivots": "unverified",
+              "same_time_amount_ratio": "unverified"
+            },
+            "notice": "operator coverage only; no automatic corporate-action verification"
+          },
+          "descriptive_label": "insufficient",
+          "collection_state": {
+            "coverage": "recorded",
+            "last_attempt": "2026-11-11T13:49:36.879926+08:00",
+            "last_error": null
+          },
+          "reference_only": false
+        },
+        "daily": {
+          "status": "ok",
+          "count": 120,
+          "close": 25.69,
+          "last_bar_end": "2026-11-10T15:00:00+08:00",
+          "returns_pct": {
+            "1": null,
+            "4": null,
+            "20": null
+          },
+          "moving_averages": {
+            "5": {
+              "value": null,
+              "distance_pct": null,
+              "slope_pct": null
+            },
+            "20": {
+              "value": null,
+              "distance_pct": null,
+              "slope_pct": null
+            }
+          },
+          "range": {
+            "high": null,
+            "low": null,
+            "lookback_bars": 20,
+            "breakout_candidate": null
+          },
+          "same_time_amount_ratio": null,
+          "same_time_baseline_samples": 119,
+          "captured_at": "2026-11-11T09:14:13.678292+08:00",
+          "source": "akshare",
+          "pivots": [],
+          "price_basis": {
+            "status": "unverified",
+            "ex_dates": [],
+            "excluded_metrics": {
+              "returns_pct.1": "unverified",
+              "returns_pct.4": "unverified",
+              "returns_pct.20": "unverified",
+              "trend_simple": "unverified",
+              "moving_averages.5.value": "unverified",
+              "moving_averages.5.slope": "unverified",
+              "moving_averages.20.value": "unverified",
+              "moving_averages.20.slope": "unverified",
+              "range": "unverified",
+              "range_amplitude_20_pct": "unverified",
+              "local_pivots": "unverified",
+              "same_time_amount_ratio": "unverified"
+            },
+            "notice": "operator coverage only; no automatic corporate-action verification"
+          },
+          "descriptive_label": "insufficient",
+          "collection_state": {
+            "coverage": "legacy_latest_only",
+            "last_attempt": "2026-11-11T09:14:13.727832+08:00",
+            "last_error": null
+          },
+          "reference_only": false
+        }
+      },
+      "day_return": {
+        "value_pct": null,
+        "reason": "price_basis_unverified"
+      },
+      "relative_last_bar_pp": {
+        "sh000001": -0.07483205120042413,
+        "sz399001": -0.23603882780816043,
+        "sz399006": -0.530778407104382,
+        "board:industry:消费电子": -0.25476363180580996
+      },
+      "hourly_covers_latest_15m": false,
+      "event_ids": [
+        "evt_ebe22c35a80ed48d3514a512",
+        "evt_0b7ef943e4f5a5b8e84e22b5",
+        "evt_dd149cd03f590cf64b2497a3",
+        "evt_a23e2fec3f1b3f436ba86bb0"
+      ],
+      "event_coverage": {
+        "eligible": 8,
+        "target_matches": 2,
+        "shown": 4,
+        "truncated": true
+      },
+      "longhubang": {
+        "role": "post_close_background",
+        "status": "not_in_collected_list",
+        "latest_checked_trade_date": "2026-11-10",
+        "latest_trade_date": null,
+        "age_calendar_days": null,
+        "coverage": [
+          {
+            "trade_date": "2026-11-10",
+            "captured_at": "2026-11-11T10:15:13.199742+08:00",
+            "provider": "akshare",
+            "row_count": 58,
+            "settled": 1,
+            "target_records": 0,
+            "status": "not_in_collected_list"
+          }
+        ],
+        "refresh_issues": []
+      },
+      "previous_decision": null
+    },
+    {
+      "symbol": "002242",
+      "name": "九阳股份",
+      "as_of": "2026-11-11T13:50:07.834089+08:00",
+      "periods": {
+        "15": {
+          "status": "ok",
+          "count": 160,
+          "close": 26.51,
+          "last_bar_end": "2026-11-11T13:45:00+08:00",
+          "returns_pct": {
+            "1": 0.3406510219530645,
+            "4": 0.22684310018903364,
+            "20": null
+          },
+          "moving_averages": {
+            "5": {
+              "value": 26.452,
+              "distance_pct": 0.21926508392560162,
+              "slope_pct": 0.11354174551509999
+            },
+            "20": {
+              "value": null,
+              "distance_pct": null,
+              "slope_pct": null
+            }
+          },
+          "range": {
+            "high": null,
+            "low": null,
+            "lookback_bars": 20,
+            "breakout_candidate": null
+          },
+          "same_time_amount_ratio": null,
+          "same_time_baseline_samples": 9,
+          "captured_at": "2026-11-11T13:49:37.092644+08:00",
+          "source": "akshare",
+          "pivots": [
+            {
+              "type": "low",
+              "price": 26.07,
+              "at": "2026-11-10T11:15:00+08:00",
+              "confirmed_at": "2026-11-10T11:30:00+08:00"
+            },
+            {
+              "type": "low",
+              "price": 26.09,
+              "at": "2026-11-10T13:30:00+08:00",
+              "confirmed_at": "2026-11-10T13:45:00+08:00"
+            }
+          ],
+          "price_basis": {
+            "status": "unverified",
+            "ex_dates": [],
+            "excluded_metrics": {
+              "returns_pct.20": "unverified",
+              "moving_averages.20.value": "unverified",
+              "moving_averages.20.slope": "unverified",
+              "range": "unverified",
+              "range_amplitude_20_pct": "unverified",
+              "local_pivots": "unverified",
+              "same_time_amount_ratio": "unverified"
+            },
+            "notice": "operator coverage only; no automatic corporate-action verification"
+          },
+          "descriptive_label": "strong_observation",
+          "collection_state": {
+            "coverage": "recorded",
+            "last_attempt": "2026-11-11T13:49:37.110441+08:00",
+            "last_error": null
+          },
+          "reference_only": false
+        },
+        "60": {
+          "status": "ok",
+          "count": 80,
+          "close": 26.46,
+          "last_bar_end": "2026-11-11T11:30:00+08:00",
+          "returns_pct": {
+            "1": 0.4174573055028441,
+            "4": null,
+            "20": null
+          },
+          "moving_averages": {
+            "5": {
+              "value": null,
+              "distance_pct": null,
+              "slope_pct": null
+            },
+            "20": {
+              "value": null,
+              "distance_pct": null,
+              "slope_pct": null
+            }
+          },
+          "range": {
+            "high": null,
+            "low": null,
+            "lookback_bars": 20,
+            "breakout_candidate": null
+          },
+          "same_time_amount_ratio": null,
+          "same_time_baseline_samples": 19,
+          "captured_at": "2026-11-11T13:49:37.413305+08:00",
+          "source": "akshare",
+          "pivots": [
+            {
+              "type": "low",
+              "price": 22.07,
+              "at": "2026-11-04T14:00:00+08:00",
+              "confirmed_at": "2026-11-04T15:00:00+08:00"
+            },
+            {
+              "type": "high",
+              "price": 25.33,
+              "at": "2026-11-06T14:00:00+08:00",
+              "confirmed_at": "2026-11-06T15:00:00+08:00"
+            }
+          ],
+          "price_basis": {
+            "status": "unverified",
+            "ex_dates": [],
+            "excluded_metrics": {
+              "returns_pct.4": "unverified",
+              "returns_pct.20": "unverified",
+              "trend_simple": "unverified",
+              "moving_averages.5.value": "unverified",
+              "moving_averages.5.slope": "unverified",
+              "moving_averages.20.value": "unverified",
+              "moving_averages.20.slope": "unverified",
+              "range": "unverified",
+              "range_amplitude_20_pct": "unverified",
+              "local_pivots": "unverified",
+              "same_time_amount_ratio": "unverified"
+            },
+            "notice": "operator coverage only; no automatic corporate-action verification"
+          },
+          "descriptive_label": "insufficient",
+          "collection_state": {
+            "coverage": "recorded",
+            "last_attempt": "2026-11-11T13:49:37.419455+08:00",
+            "last_error": null
+          },
+          "reference_only": false
+        },
+        "daily": {
+          "status": "ok",
+          "count": 120,
+          "close": 26.35,
+          "last_bar_end": "2026-11-10T15:00:00+08:00",
+          "returns_pct": {
+            "1": null,
+            "4": null,
+            "20": null
+          },
+          "moving_averages": {
+            "5": {
+              "value": null,
+              "distance_pct": null,
+              "slope_pct": null
+            },
+            "20": {
+              "value": null,
+              "distance_pct": null,
+              "slope_pct": null
+            }
+          },
+          "range": {
+            "high": null,
+            "low": null,
+            "lookback_bars": 20,
+            "breakout_candidate": null
+          },
+          "same_time_amount_ratio": null,
+          "same_time_baseline_samples": 119,
+          "captured_at": "2026-11-11T10:49:28.183119+08:00",
+          "source": "akshare",
+          "pivots": [],
+          "price_basis": {
+            "status": "unverified",
+            "ex_dates": [],
+            "excluded_metrics": {
+              "returns_pct.1": "unverified",
+              "returns_pct.4": "unverified",
+              "returns_pct.20": "unverified",
+              "trend_simple": "unverified",
+              "moving_averages.5.value": "unverified",
+              "moving_averages.5.slope": "unverified",
+              "moving_averages.20.value": "unverified",
+              "moving_averages.20.slope": "unverified",
+              "range": "unverified",
+              "range_amplitude_20_pct": "unverified",
+              "local_pivots": "unverified",
+              "same_time_amount_ratio": "unverified"
+            },
+            "notice": "operator coverage only; no automatic corporate-action verification"
+          },
+          "descriptive_label": "insufficient",
+          "collection_state": {
+            "coverage": "legacy_latest_only",
+            "last_attempt": "2026-11-11T10:49:28.232015+08:00",
+            "last_error": null
+          },
+          "reference_only": false
+        }
+      },
+      "day_return": {
+        "value_pct": null,
+        "reason": "price_basis_unverified"
+      },
+      "relative_last_bar_pp": {
+        "sh000001": -0.09217625597766066,
+        "sz399001": -0.25338303258539696,
+        "sz399006": -0.5481226118816185
+      },
+      "hourly_covers_latest_15m": false,
+      "event_ids": [
+        "evt_75db179da0a29b609b254e20",
+        "evt_d04c1dbb93e3fa2630db29e6",
+        "evt_dd149cd03f590cf64b2497a3",
+        "evt_a23e2fec3f1b3f436ba86bb0"
+      ],
+      "event_coverage": {
+        "eligible": 8,
+        "target_matches": 2,
+        "shown": 4,
+        "truncated": true
+      },
+      "longhubang": {
+        "role": "post_close_background",
+        "status": "not_in_collected_list",
+        "latest_checked_trade_date": "2026-11-10",
+        "latest_trade_date": null,
+        "age_calendar_days": null,
+        "coverage": [
+          {
+            "trade_date": "2026-11-10",
+            "captured_at": "2026-11-11T10:15:13.199742+08:00",
+            "provider": "akshare",
+            "row_count": 58,
+            "settled": 1,
+            "target_records": 0,
+            "status": "not_in_collected_list"
+          }
+        ],
+        "refresh_issues": []
+      },
+      "previous_decision": null
+    }
+  ],
+  "events": [
+    {
+      "event_id": "evt_ebe22c35a80ed48d3514a512",
+      "title": "歌尔股份获得发明专利授权：“发声装置和电子设备”_公司新闻 - 证券之星",
+      "status": "unverified",
+      "latest_report_at": "2026-11-07T11:52:30+08:00",
+      "latest_seen_at": "2026-11-11T09:32:33.280756+08:00",
+      "source_count": 1,
+      "sources": [
+        "证券之星"
+      ],
+      "first_seen_at": "2026-11-11T09:32:33.280756+08:00"
+    },
+    {
+      "event_id": "evt_0b7ef943e4f5a5b8e84e22b5",
+      "title": "歌尔股份获得发明专利授权：“按键的触感检测控制方法、装置及系统”_公司新闻 - 证券之星",
+      "status": "unverified",
+      "latest_report_at": "2026-11-07T11:52:30+08:00",
+      "latest_seen_at": "2026-11-11T09:32:33.280726+08:00",
+      "source_count": 1,
+      "sources": [
+        "证券之星"
+      ],
+      "first_seen_at": "2026-11-11T09:32:33.280726+08:00"
+    },
+    {
+      "event_id": "evt_dd149cd03f590cf64b2497a3",
+      "title": "Aggressive Fed Rate Hikes Are Quickly Becoming the Biggest Risk to Stocks in 2027, Says Economist - Moomoo",
+      "status": "unverified",
+      "latest_report_at": "2026-11-11T07:59:24+08:00",
+      "latest_seen_at": "2026-11-11T10:49:57.846371+08:00",
+      "source_count": 1,
+      "sources": [
+        "Moomoo"
+      ],
+      "first_seen_at": "2026-11-11T10:49:57.846371+08:00"
+    },
+    {
+      "event_id": "evt_a23e2fec3f1b3f436ba86bb0",
+      "title": "10月利率交易升温，一位美联储理事倾向于支持12月加息 - Moomoo",
+      "status": "unverified",
+      "latest_report_at": "2026-11-11T02:55:00+08:00",
+      "latest_seen_at": "2026-11-11T09:32:30.996960+08:00",
+      "source_count": 1,
+      "sources": [
+        "Moomoo"
+      ],
+      "first_seen_at": "2026-11-11T09:32:30.996960+08:00"
+    },
+    {
+      "event_id": "evt_75db179da0a29b609b254e20",
+      "title": "九阳股份（002242）11月9日主力资金净卖出2392.22万元 - 搜狐网",
+      "status": "unverified",
+      "latest_report_at": "2026-11-10T10:02:12+08:00",
+      "latest_seen_at": "2026-11-11T09:32:33.281144+08:00",
+      "source_count": 1,
+      "sources": [
+        "搜狐网"
+      ],
+      "first_seen_at": "2026-11-11T09:32:33.281144+08:00"
+    },
+    {
+      "event_id": "evt_d04c1dbb93e3fa2630db29e6",
+      "title": "九阳股份（002242）11月6日主力资金净卖出2513.11万元 - 搜狐网",
+      "status": "unverified",
+      "latest_report_at": "2026-11-09T09:13:16+08:00",
+      "latest_seen_at": "2026-11-11T09:32:33.281203+08:00",
+      "source_count": 1,
+      "sources": [
+        "搜狐网"
+      ],
+      "first_seen_at": "2026-11-11T09:32:33.281203+08:00"
+    }
+  ],
+  "rankings": {
+    "industry": {
+      "board_type": "industry",
+      "status": "available",
+      "last_error": null,
+      "reason": null,
+      "captured_at": "2026-11-11T13:50:01.161735+08:00",
+      "previous_at": "2026-11-11T10:50:09.438912+08:00",
+      "comparison_available": true,
+      "comparison_note": "仅有效且板块代码集合一致的两次快照比较排名；并列同名次",
+      "scope": "数据源板块榜单；覆盖和实时性未核实，不等于全市场个股",
+      "boards": [
+        {
+          "captured_at": "2026-11-11T13:50:01.161735+08:00",
+          "board_type": "industry",
+          "board_code": "BK1296",
+          "board_name": "视频媒体",
+          "change_pct": 6.89,
+          "amount": null,
+          "rank": 1,
+          "prior_rank": 21,
+          "rank_change": 20
+        },
+        {
+          "captured_at": "2026-11-11T13:50:01.161735+08:00",
+          "board_type": "industry",
+          "board_code": "BK1295",
+          "board_name": "其他数字媒体",
+          "change_pct": 6.55,
+          "amount": null,
+          "rank": 2,
+          "prior_rank": 1,
+          "rank_change": -1
+        },
+        {
+          "captured_at": "2026-11-11T13:50:01.161735+08:00",
+          "board_type": "industry",
+          "board_code": "BK1591",
+          "board_name": "通信网络设备及器件",
+          "change_pct": 6.45,
+          "amount": null,
+          "rank": 3,
+          "prior_rank": 8,
+          "rank_change": 5
+        },
+        {
+          "captured_at": "2026-11-11T13:50:01.161735+08:00",
+          "board_type": "industry",
+          "board_code": "BK1592",
+          "board_name": "通信线缆及配套",
+          "change_pct": 5.32,
+          "amount": null,
+          "rank": 4,
+          "prior_rank": 12,
+          "rank_change": 8
+        },
+        {
+          "captured_at": "2026-11-11T13:50:01.161735+08:00",
+          "board_type": "industry",
+          "board_code": "BK1340",
+          "board_name": "印制电路板",
+          "change_pct": 5.05,
+          "amount": null,
+          "rank": 5,
+          "prior_rank": 29,
+          "rank_change": 24
+        }
+      ]
+    },
+    "concept": {
+      "board_type": "concept",
+      "status": "available",
+      "last_error": null,
+      "reason": null,
+      "captured_at": "2026-11-11T13:50:07.830168+08:00",
+      "previous_at": "2026-11-11T10:50:17.806337+08:00",
+      "comparison_available": true,
+      "comparison_note": "仅有效且板块代码集合一致的两次快照比较排名；并列同名次",
+      "scope": "数据源板块榜单；覆盖和实时性未核实，不等于全市场个股",
+      "boards": [
+        {
+          "captured_at": "2026-11-11T13:50:07.830168+08:00",
+          "board_type": "concept",
+          "board_code": "BK1128",
+          "board_name": "CPO概念",
+          "change_pct": 5.32,
+          "amount": null,
+          "rank": 1,
+          "prior_rank": 14,
+          "rank_change": 13
+        },
+        {
+          "captured_at": "2026-11-11T13:50:07.830168+08:00",
+          "board_type": "concept",
+          "board_code": "BK1136",
+          "board_name": "光通信模块",
+          "change_pct": 4.72,
+          "amount": null,
+          "rank": 2,
+          "prior_rank": 17,
+          "rank_change": 15
+        },
+        {
+          "captured_at": "2026-11-11T13:50:07.830168+08:00",
+          "board_type": "concept",
+          "board_code": "BK1051",
+          "board_name": "昨日连板_含一字",
+          "change_pct": 4.7,
+          "amount": null,
+          "rank": 3,
+          "prior_rank": 1,
+          "rank_change": -2
+        },
+        {
+          "captured_at": "2026-11-11T13:50:07.830168+08:00",
+          "board_type": "concept",
+          "board_code": "BK0816",
+          "board_name": "昨日连板",
+          "change_pct": 4.4,
+          "amount": null,
+          "rank": 4,
+          "prior_rank": 2,
+          "rank_change": -2
+        },
+        {
+          "captured_at": "2026-11-11T13:50:07.830168+08:00",
+          "board_type": "concept",
+          "board_code": "BK1660",
+          "board_name": "光纤概念",
+          "change_pct": 4.13,
+          "amount": null,
+          "rank": 5,
+          "prior_rank": 24,
+          "rank_change": 19
+        }
+      ]
+    }
+  },
+  "overseas": {
+    "status": "not_collected",
+    "notice": "no verified overseas feed in this pipeline"
+  },
+  "synthesis": {
+    "status": "requires_model_judgment",
+    "action": "WAIT",
+    "notice": "descriptive labels are not a directional vote or trade signal"
+  }
+}

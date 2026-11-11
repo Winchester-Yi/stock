@@ -10,6 +10,11 @@ CREATE INDEX IF NOT EXISTS bars_lookup ON bars(symbol,timeframe,bar_end,captured
 CREATE TABLE IF NOT EXISTS sector_members (as_of TEXT NOT NULL, board_id TEXT NOT NULL, board_type TEXT NOT NULL, symbol TEXT NOT NULL, change_pct REAL, PRIMARY KEY(as_of,board_id,board_type,symbol));
 CREATE TABLE IF NOT EXISTS news_events (event_key TEXT PRIMARY KEY, title TEXT NOT NULL, category TEXT, published_at TEXT, first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL, status TEXT NOT NULL, url TEXT NOT NULL, source TEXT, summary TEXT, query TEXT);
 CREATE TABLE IF NOT EXISTS analysis_runs (id INTEGER PRIMARY KEY, symbol TEXT NOT NULL, as_of TEXT NOT NULL, context_hash TEXT NOT NULL, context_json TEXT NOT NULL, decision_json TEXT NOT NULL, report_path TEXT, evaluated_json TEXT, created_at TEXT NOT NULL, UNIQUE(symbol,as_of,context_hash));
+CREATE TABLE IF NOT EXISTS price_basis_checks (
+    symbol TEXT NOT NULL, coverage_start TEXT NOT NULL, coverage_end TEXT NOT NULL,
+    checked_at TEXT NOT NULL, source_url TEXT NOT NULL, ex_dates_json TEXT NOT NULL,
+    PRIMARY KEY(symbol,coverage_start,coverage_end,checked_at));
+CREATE INDEX IF NOT EXISTS price_basis_lookup ON price_basis_checks(symbol,checked_at);
 CREATE INDEX IF NOT EXISTS events_seen ON news_events(first_seen_at);
 CREATE INDEX IF NOT EXISTS analysis_symbol ON analysis_runs(symbol,as_of);
 CREATE TABLE IF NOT EXISTS lhb_records (symbol TEXT NOT NULL, trade_date TEXT NOT NULL, reason TEXT NOT NULL, name TEXT, buy REAL, sell REAL, net REAL, amount REAL, source TEXT NOT NULL, captured_at TEXT NOT NULL, PRIMARY KEY(symbol,trade_date,reason,source,captured_at));
@@ -41,9 +46,9 @@ def save_bars(db, rows):
     db.executemany('INSERT OR IGNORE INTO bars ('+','.join(cols)+') VALUES ('+','.join('?' for _ in cols)+')', [[r.get(k) for k in cols] for r in rows])
     db.commit()
 
-def bars_at(db, symbol, timeframe, as_of, limit=160):
+def bars_at(db, symbol, timeframe, as_of, limit=160, *, bar_end_at=None):
     # Each revision has its own capture time; never leak future corrections.
-    rows = db.execute('''SELECT * FROM bars b WHERE symbol=? AND timeframe=? AND adjust='' AND source IN ('akshare','eastmoney-web') AND quality='valid' AND bar_end<=? AND captured_at<=? AND captured_at=(SELECT MAX(captured_at) FROM bars x WHERE x.symbol=b.symbol AND x.timeframe=b.timeframe AND x.bar_end=b.bar_end AND x.adjust=b.adjust AND x.source=b.source AND x.captured_at<=?) ORDER BY bar_end DESC LIMIT ?''', (symbol,timeframe,as_of,as_of,as_of,limit)).fetchall()
+    rows = db.execute('''SELECT * FROM bars b WHERE symbol=? AND timeframe=? AND adjust='' AND source IN ('akshare','eastmoney-web') AND quality='valid' AND bar_end<=? AND captured_at<=? AND captured_at=(SELECT MAX(captured_at) FROM bars x WHERE x.symbol=b.symbol AND x.timeframe=b.timeframe AND x.bar_end=b.bar_end AND x.adjust=b.adjust AND x.source=b.source AND x.captured_at<=?) ORDER BY bar_end DESC LIMIT ?''', (symbol,timeframe,bar_end_at or as_of,as_of,as_of,limit)).fetchall()
     return [dict(x) for x in reversed(rows)]
 
 def events_at(db, as_of, since, limit=30):

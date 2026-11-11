@@ -8,6 +8,23 @@
 
 首次安装依赖并运行 `python stock_agent.py init`；按需配置 `config.json` 的板块映射。`stock_names` 为个股新闻标题筛选提供名称，不能替代人工核对的板块映射。独立数据接口可用 `python research_data.py --help` 查看。手动研究结果不会自动写入 `analysis_runs` 或进入 `evaluate`，除非另行实现保存机制。
 
+### 快速判定报告
+
+非交易时段仅给收盘／最近交易时段结构评价，不外推下一交易时段方向；跨休市重新核对新证据。默认报告按 [快速报告模式](docs/claude/report-format.md) 输出：**结论摘要 → 市场简表 → 股票判定表 → 必要增量与限制**。每股一个主要判定、关键依据、较上轮变化和两个最重要的观察条件；缠论、波浪等只作内部框架，不逐项展开。指定单股不扩展为七股扫描；未指定股票的完整分析覆盖配置范围；“更新”只报告新变化。
+
+取数优先使用 [批量研究入口](docs/claude/research-command.md)：
+
+```bash
+python3 research_data.py research --symbols 002241              # 单股、关联板块及指数
+python3 research_data.py research --news --hotspots              # 配置关注列表，共享数据去重
+python3 research_data.py research --symbols 002241 --no-refresh  # 只读当前已存数据，不联网
+python3 research_data.py research --symbols 002241 --as-of 2026-11-11T10:50:20+08:00
+```
+
+默认输出经过资格检查的 Agent 文字证据简报（带单位、时间、证据编号和缺失原因），不再要求模型解读嵌套 JSON。需要同次留存原采集状态时使用 `--snapshot-out <新文件路径>`（不覆盖），无需为另一格式重复研究；机器快照 `acquisition.results` 保留逐项状态，回放零计数不是原采集证明。程序接入和诊断使用 `--format json`，`--pretty` 继续输出缩进 JSON。显式 Python 编排也使用同一加工层，模型的决策返回仍为 JSON。详见 [证据加工逻辑](docs/claude/agent-evidence.md)。
+
+统一的是数据可用截止时间与 SQLite 读视图，不保证上游报价同步。摘要集中给出失败、缺失、过期和价格口径风险；`incomplete` 退出 1，`limited` 退出 0 但不代表全部验证通过。`context / bars / hotspots` 也支持 `--as-of`。价格口径依赖显式人工登记，非自动公告核验；没有核验覆盖的跨日指标置空，不默认通过。目标是更快交付有效结论，不承诺固定耗时或已验证的预测收益。
+
 ## 保留模式：Python 编排
 
 ```bash

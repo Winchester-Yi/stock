@@ -12,6 +12,23 @@ def setup(db):
     db.execute('''CREATE TABLE IF NOT EXISTS refresh_status (
         key TEXT PRIMARY KEY, last_success TEXT, last_attempt TEXT, last_error TEXT,
         last_count INTEGER, metadata TEXT)''')
+    db.execute('''CREATE TABLE IF NOT EXISTS refresh_attempts (
+        key TEXT NOT NULL, recorded_at TEXT NOT NULL, status TEXT NOT NULL,
+        last_success TEXT, last_error TEXT, PRIMARY KEY(key,recorded_at))''')
+
+
+def state_at(db, key, as_of):
+    parsed = as_of if isinstance(as_of, dt.datetime) else dt.datetime.fromisoformat(as_of)
+    if parsed.tzinfo is None: raise ValueError('as_of must include timezone')
+    stamp = parsed.astimezone(TZ).isoformat()
+    exists = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='refresh_attempts'").fetchone()
+    if exists:
+        row = db.execute('SELECT * FROM refresh_attempts WHERE key=? AND recorded_at<=? ORDER BY recorded_at DESC LIMIT 1', (key,stamp)).fetchone()
+        if row: return {**dict(row), 'last_attempt':row['recorded_at'], 'coverage':'recorded'}
+    exists = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='refresh_status'").fetchone()
+    row = db.execute('SELECT * FROM refresh_status WHERE key=? AND last_attempt<=?', (key,stamp)).fetchone() if exists else None
+    return {**dict(row), 'coverage':'legacy_latest_only'} if row else {'coverage':'unknown'}
+
 
 
 def timestamp(value):
@@ -86,6 +103,14 @@ def acquire(db, key, now, ttl, fn, timeframe=None, force=False, *, policy='ttl',
     row=db.execute('SELECT * FROM refresh_status WHERE key=?',(key,)).fetchone()
     previous=dict(row) if row else {}
     metadata=json.loads(previous.get('metadata') or '{}')
+    def remember_previous():
+        # Keep a known legacy state before its mutable row is overwritten.
+        old_attempt = timestamp(previous.get('last_attempt'))
+        if old_attempt and old_attempt <= now:
+            db.execute('INSERT OR IGNORE INTO refresh_attempts VALUES (?,?,?,?,?)',
+                       (key,old_attempt.isoformat(),'failed' if previous.get('last_error') else 'updated',
+                        previous.get('last_success'),previous.get('last_error')))
+
     base={'key':key,'policy':policy,'last_success':previous.get('last_success'),
           'last_attempt':previous.get('last_attempt'),'last_error':previous.get('last_error'),
           'count':previous.get('last_count'),'metadata':metadata}
@@ -114,6 +139,8 @@ def acquire(db, key, now, ttl, fn, timeframe=None, force=False, *, policy='ttl',
             last_success=excluded.last_success,last_attempt=excluded.last_attempt,last_error=NULL,
             last_count=excluded.last_count,metadata=excluded.metadata''',
             (key,completed,completed,None,count,json.dumps(result,ensure_ascii=False,allow_nan=False)))
+        remember_previous()
+        db.execute('INSERT OR REPLACE INTO refresh_attempts VALUES (?,?,?,?,?)', (key,completed,'updated',completed,None))
         db.commit()
         return {'key':key,'policy':policy,'status':'updated','last_success':completed,
                 'last_attempt':completed,'last_error':None,'count':count,'metadata':result}
@@ -123,6 +150,8 @@ def acquire(db, key, now, ttl, fn, timeframe=None, force=False, *, policy='ttl',
         db.execute('''INSERT INTO refresh_status(key,last_attempt,last_error) VALUES (?,?,?)
             ON CONFLICT(key) DO UPDATE SET last_attempt=excluded.last_attempt,last_error=excluded.last_error''',
             (key,completed,error))
+        remember_previous()
+        db.execute('INSERT OR REPLACE INTO refresh_attempts VALUES (?,?,?,?,?)', (key,completed,'failed',previous.get('last_success'),error))
         db.commit()
         return {**base,'status':'failed','last_attempt':completed,'last_error':error,
                 'retry_at':(dt.datetime.fromisoformat(completed)+dt.timedelta(seconds=retry_seconds)).isoformat(),

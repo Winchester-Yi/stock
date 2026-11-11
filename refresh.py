@@ -99,10 +99,13 @@ def board_ranking(db, board_type):
             'coverage':'provider board list; completeness and timeliness unverified',
             'amount_note':'turnover not supplied by this endpoint'}
 
-def rank_output(db,board_type,limit):
-    stamps=[r[0] for r in db.execute('SELECT DISTINCT captured_at FROM board_rank_snapshots WHERE board_type=? ORDER BY captured_at DESC LIMIT 2',(board_type,))]
-    attempt=db.execute('SELECT last_error FROM refresh_status WHERE key=?',('ranking:'+board_type,)).fetchone()
-    error=attempt['last_error'] if attempt else None
+def rank_output(db,board_type,limit,as_of=None):
+    at=as_of if isinstance(as_of,dt.datetime) else dt.datetime.fromisoformat(as_of) if as_of else dt.datetime.now(TZ)
+    if at.tzinfo is None: raise ValueError('as_of must include timezone')
+    cutoff=at.astimezone(TZ).isoformat()
+    stamps=[r[0] for r in db.execute('SELECT DISTINCT captured_at FROM board_rank_snapshots WHERE board_type=? AND captured_at<=? ORDER BY captured_at DESC LIMIT 2',(board_type,cutoff))]
+    attempt=update_policy.state_at(db,'ranking:'+board_type,cutoff)
+    error=attempt.get('last_error')
     if not stamps: return {'board_type':board_type,'status':'missing','last_error':error,'comparison_available':False,'boards':[]}
     def snapshot(stamp):
         return [dict(r) for r in db.execute('SELECT * FROM board_rank_snapshots WHERE board_type=? AND captured_at=? ORDER BY change_pct DESC,board_code',(board_type,stamp))]

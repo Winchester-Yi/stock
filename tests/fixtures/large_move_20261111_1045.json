@@ -1,0 +1,74 @@
+{
+  "as_of": "2026-11-11T10:50:20+08:00",
+  "symbol": "000678",
+  "period_15": {
+    "status": "ok",
+    "count": 160,
+    "close": 20.97,
+    "last_bar_end": "2026-11-11T10:45:00+08:00",
+    "returns_pct": {
+      "1": 9.50391644908617,
+      "4": 10.368421052631582,
+      "20": null
+    },
+    "moving_averages": {
+      "5": {
+        "value": 19.464,
+        "distance_pct": 7.737361282367439,
+        "slope_pct": null
+      },
+      "20": {
+        "value": null,
+        "distance_pct": null,
+        "slope_pct": null
+      }
+    },
+    "range": {
+      "high": null,
+      "low": null,
+      "lookback_bars": 20,
+      "breakout_candidate": null
+    },
+    "same_time_amount_ratio": null,
+    "same_time_baseline_samples": 9,
+    "captured_at": "2026-11-11T10:49:19.596519+08:00",
+    "source": "akshare",
+    "pivots": [
+      {
+        "type": "high",
+        "price": 18.26,
+        "at": "2026-11-09T14:15:00+08:00",
+        "confirmed_at": "2026-11-09T14:30:00+08:00"
+      },
+      {
+        "type": "low",
+        "price": 18.8,
+        "at": "2026-11-11T10:30:00+08:00",
+        "confirmed_at": "2026-11-11T10:45:00+08:00"
+      }
+    ],
+    "price_basis": {
+      "status": "unverified",
+      "ex_dates": [],
+      "excluded_metrics": {
+        "returns_pct.20": "unverified",
+        "trend_simple": "unverified",
+        "moving_averages.5.slope": "unverified",
+        "moving_averages.20.value": "unverified",
+        "moving_averages.20.slope": "unverified",
+        "range": "unverified",
+        "range_amplitude_20_pct": "unverified",
+        "local_pivots": "unverified",
+        "same_time_amount_ratio": "unverified"
+      },
+      "notice": "operator coverage only; no automatic corporate-action verification"
+    },
+    "descriptive_label": "insufficient",
+    "collection_state": {
+      "coverage": "legacy_latest_only",
+      "last_attempt": "2026-11-11T10:49:19.609610+08:00",
+      "last_error": null
+    },
+    "reference_only": false
+  }
+}

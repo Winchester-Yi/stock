@@ -2,9 +2,9 @@
 
 ## 采集与存储
 
-`market_data.sqlite3` 是唯一数据库，`init` 对既有数据库先做 SQLite Backup API 备份再增量建表；不要覆盖、删除或把本地数据库提交到 Git。旧版 `snapshots`、`observations`、`fetch_runs` 与新增 `bars`、`sector_members`、新闻与事件表、`lhb_records`、`lhb_seats`、`analysis_runs` 共存。新增 `sector_constituents` 保存低频成分名单，`lhb_daily_batches` / `lhb_seat_batches` 保存完整采集版本边界；已有数据不删除。
+`market_data.sqlite3` 是唯一数据库，`init` 对既有数据库先做 SQLite Backup API 备份再增量建表；不要覆盖、删除或把本地数据库提交到 Git。旧版 `snapshots`、`observations`、`fetch_runs` 与新增 `bars`、`sector_members`、新闻与事件表、`lhb_records`、`lhb_seats`、`analysis_runs` 共存。新增 `sector_constituents` 保存低频成分名单，`lhb_daily_batches` / `lhb_seat_batches` 保存完整采集版本边界；新增 `price_basis_checks` 保存有时间版本的人工价格口径覆盖，`refresh_attempts` 保存升级后的采集尝试状态；已有数据不删除。
 
-行情通过 AKShare 和东方财富网页接口取得。A 股分钟和日线为不复权；股票分钟成交量按手转股，板块和指数成交量单位未核实时留空。只保存通过检查且结束时间不晚于采集时间的 K 线；以数据源的结束时间标签为假设，需在本机核对。历史查询按 `captured_at` 筛选修订版本。交易日仅按工作日和时段粗判，没有完整休市日历。收盘集合竞价包含在最后一根中。不得将复权与不复权价格混用或跨除权直接解释突破。
+行情通过 AKShare 和东方财富网页接口取得。A 股分钟和日线为不复权；股票分钟成交量按手转股，板块和指数成交量单位未核实时留空。只保存通过检查且结束时间不晚于采集时间的 K 线；以数据源的结束时间标签为假设，需在本机核对。历史查询按 `captured_at` 筛选修订版本。批量入口、统一 `--as-of` 和指标资格见 [批量研究命令](research-command.md)：context／research 会停用未核验或跨除息的跨日指标，bars 保留原始值，不得用原始值绕过该限制。交易日仅按工作日和时段粗判，没有完整休市日历。收盘集合竞价包含在最后一根中。不得将复权与不复权价格混用或跨除权直接解释突破。
 
 板块通过 `config.json` 人工映射 `industry` / `concept`，无需假定系统自动识别主营行业。成分名单与成分股报价快照分开管理，具体见 [更新生命周期](update-policy.md)。默认名单 24 小时核查、广度盘中 5 分钟更新；上游同一响应仍同时包含两者。成分股报价保存采集时点和涨跌幅；缺失、停牌或无有效涨跌幅数据不计入有效样本。若需要历史比较，必须有不同时间的可比较快照；当前输出没有广度变化率。
 
